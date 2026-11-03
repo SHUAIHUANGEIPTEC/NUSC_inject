@@ -6,6 +6,7 @@
 ![注入前后对比](docs/summary/figs/fig1_before_after.jpg)
 
 *左：原始 nuScenes `CAM_FRONT`；右：注入蓝色皮卡后——同一位姿同时驱动点云与图像。*
+*黄框为注入区域，右上角为其放大。*
 
 > 📄 **图文工作总结**（含管线流程图、验收数据、踩坑记录）：[docs/summary/README.md](docs/summary/README.md)
 > ｜ 模型输入格式与参数：[docs/model-input.md](docs/model-input.md)
@@ -21,7 +22,8 @@
 - **一致性校验**：注入点投影 ⊂ α 区域覆盖率、3D 框投影 IoU、坐标链往返、Blender 内参自检、num_lidar_pts。
 - **Step5 落库**：`category/attribute/instance/sample_annotation` 四表追加行，导出可被 `nuscenes-devkit` 直接加载的数据集。
 
-两个通道共用一套真值，因此注入的 LiDAR 点（下图红）会精确落在渲染轮廓（绿）内：
+两个通道共用一套真值，因此注入的 LiDAR 点（下图红）会精确落在渲染轮廓（绿）内
+（左侧为原图 + 放大内嵌；右侧 BEV 已裁到目标附近，红色即目标）：
 
 ![跨模态一致性](docs/summary/figs/fig2_overlay_bev.jpg)
 

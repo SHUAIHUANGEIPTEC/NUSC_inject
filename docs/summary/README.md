@@ -46,7 +46,7 @@
 
 ![前后对比](figs/fig1_before_after.jpg)
 
-**图 1 · 注入前后对比**：左为原始 nuScenes CAM_FRONT，右为注入后——蓝色皮卡（`temple.glb`）已合成进路面，几何位置与点云一致。
+**图 1 · 注入前后对比**：左为原始 nuScenes CAM_FRONT，右为注入后——蓝色皮卡（`temple.glb`）已合成进路面，几何位置与点云一致。黄框为注入区域，右上角为其放大（目标只占整帧约 4%，满幅看不清）。
 
 ![点云叠加与 BEV](figs/fig2_overlay_bev.jpg)
 
@@ -68,7 +68,7 @@
 
 ![批量双目标](figs/fig3_batch_two_objects.jpg)
 
-**图 3 · 同帧 2 目标、不同类目**：蓝色皮卡（`vehicle.car`，`size=[3.00, 1.34, 1.12]`）
+**图 3 · 同帧 2 目标、不同类目**（两个黄框各配放大内嵌）：蓝色皮卡（`vehicle.car`，`size=[3.00, 1.34, 1.12]`）
 与橙色护栏（`movable_object.barrier`，`size=[0.40, 2.20, 1.00]`）共用同一套 z-buffer
 与一次 Blender job，各自带独立类目落库。
 
@@ -85,7 +85,7 @@
 
 ![Blender RGBA](figs/fig4_blender_rgba.jpg)
 
-**图 4 · Step3 产物**：Blender Cycles 渲染的 RGBA 前景（棋盘格=透明区），再经 Step4 深度遮挡与软 alpha 合成回原图。
+**图 4 · Step3 产物**：Blender Cycles 渲染的 RGBA 前景（棋盘格=透明区），再经 Step4 深度遮挡与软 alpha 合成回原图。右上角为放大。
 
 ### 3.4 放置 / 类目 / 材质的效果对比
 
@@ -93,7 +93,7 @@
 
 **图 5**：同一帧上分别注入 4 个目标。A 与 D 用同一模型、只改距离（8 m / 15 m），
 隔离出距离的影响；B 与 D 同位置同朝向、只换模型与类目，隔离出目标本身的影响；
-C 的 6 m 卡车被前方真实车辆挡住 **77.3%** 的目标像素。
+C 的 6 m 卡车被前方真实车辆挡住 **77.3%** 的目标像素（放大框里只剩贴着真实卡车的窄条）。
 
 点云均强严格跟随 `albedo`：A/D (0.70) → 139，B (0.50) → 98，C (0.25) → 49。
 完整数据与结论见 [`docs/measurements.md`](../measurements.md) 的 M10。
