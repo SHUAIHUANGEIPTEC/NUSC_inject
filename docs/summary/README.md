@@ -38,39 +38,48 @@
 
 ## 3. 关键结果（图文）
 
-> **本节是历史快照**：图 1–4 与下列校验数值来自 `p0_final` / `p0_batch_v3` 两次早期运行，
-> 均**早于** `size` 轴序、gap-fill、逐像素遮挡体深度等修复。当时的遮挡实际上未生效
-> （遮挡体几何错位），因此图中的合成效果不代表当前行为。
-> **当前指标**见 §4 的导出状态表与 [`docs/measurements.md`](../measurements.md)（M8）。
+> 图 1–4 均由 `scripts/make_doc_figs.py` 从真实运行出图（`fig_temple` 单目标、
+> `fig_two_final` 双目标），不是手绘。改动合成/遮挡代码后重跑该脚本即可刷新。
+> 全量指标见 §4 与 [`docs/measurements.md`](../measurements.md)。
 
-### 3.1 单样本 P0 验收（run-id `p0_final`）
+### 3.1 单样本 P0 验收（run-id `fig_temple`）
 
 ![前后对比](figs/fig1_before_after.jpg)
 
-**图 1 · 注入前后对比**：左为原始 nuScenes CAM_FRONT，右为注入后——蓝色皮卡（temple.glb 模型）已合成进路面，几何位置与点云一致。
+**图 1 · 注入前后对比**：左为原始 nuScenes CAM_FRONT，右为注入后——蓝色皮卡（`temple.glb`）已合成进路面，几何位置与点云一致。
 
 ![点云叠加与 BEV](figs/fig2_overlay_bev.jpg)
 
-**图 2 · LiDAR 侧可视化**：左为注入点（红）+ 3D 框（绿）投影回图像，与合成区域重合；右为 BEV，红框即注入目标在自车前方位置。
+**图 2 · 跨模态一致性**：左为注入的 LiDAR 点（红）密铺在渲染轮廓（绿）内，两通道逐像素对齐；
+右为 BEV，红色即目标在自车前方。
 
 校验数值（`validation_report.json`）：
 
 | 校验项 | 实测 | 阈值 | 结果 |
 |---|---|---|---|
 | 坐标链往返残差 | 6.0e-14 | <1e-6 | ✅ |
-| `num_lidar_pts` | 2263 | >0 | ✅ |
+| `num_lidar_pts` | 4202 | >0 | ✅ |
 | Blender 内参自检 | 0.006 px | <2 px | ✅ |
-| 点投影 ⊂ α 覆盖率 | 0.987 | ≥0.85 | ✅ |
+| 点投影 ⊂ α 覆盖率 | 0.997 | ≥0.85 | ✅ |
 | 3D 框投影 IoU | 0.884 | ≥0.5（触边豁免） | ✅ |
+| 被遮挡像素 / 无理由遮挡 | 648（1.9%）/ **0** | 0 违例 | ✅ |
 
-### 3.2 批量注入（run-id `p0_batch_v3`）
+### 3.2 同帧多目标（run-id `fig_two_final`）
 
 ![批量双目标](figs/fig3_batch_two_objects.jpg)
 
-**图 3 · 同帧 2 目标批量注入**：多个模型随机放置，共用同一 range-image z-buffer——**目标之间互相遮挡**，单次 Blender job 渲染。
+**图 3 · 同帧 2 目标、不同类目**：蓝色皮卡（`vehicle.car`，`size=[3.00, 1.34, 1.12]`）
+与橙色护栏（`movable_object.barrier`，`size=[0.40, 2.20, 1.00]`）共用同一套 z-buffer
+与一次 Blender job，各自带独立类目落库。
 
-- 5 sample × 2 obj → **5/5 all_pass**，10 条新标注
-- 批量放置可复现：`np.random.default_rng([seed, sample_index])`
+| 校验项 | CAM_FRONT | CAM_FRONT_LEFT |
+|---|---|---|
+| 点投影 ⊂ α 覆盖率 | 0.998 | 1.000 |
+| 3D 框投影 IoU | 0.970 | 0.697（触边豁免） |
+| 被遮挡像素 / 无理由遮挡 | 2564 / **0** | 0 / **0** |
+| `num_lidar_pts` | 3591 | 5918 |
+
+批量放置可复现：`np.random.default_rng([seed, sample_index])`。
 
 ### 3.3 Blender 前景通道
 
@@ -160,7 +169,7 @@ pytest                                # 单测回归，无需数据与 Blender
 # 单样本回归
 python scripts/run_p0.py --config configs/p0.yaml --run-id my_run
 # 批量注入 + 落库 + 导出（仅 all_pass 进导出）
-python scripts/run_batch.py --config configs/batch.yaml --run-id p0_batch_v3
+python scripts/run_batch.py --config configs/batch.yaml --run-id my_batch
 # 只重导出（须用可信 specs.json）
 python scripts/run_batch.py --config configs/batch.yaml --export-only
 ```
@@ -170,8 +179,8 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
 ## 7. 已完成 vs 后续
 
 **已完成**
-- ✅ P0 单样本同步注入，五项校验全过（`p0_final`）
-- ✅ 批量多目标注入（互遮挡 + 确定性 seed），5/5 all_pass（`p0_batch_v3`）
+- ✅ P0 单样本同步注入，校验全过（`fig_temple`）
+- ✅ 同帧多目标、多类目注入（共享 z-buffer + 确定性 seed，`fig_two_final`）
 - ✅ 跨帧轨迹注入 10 scene，devkit 加载与渲染通过
 - ✅ 标准 nuScenes 数据集导出 + token 确定性 + md5 对账
 - ✅ **修复 `sample_annotation.size` 轴序**（nuScenes `[w,l,h]` vs 模型框 `x,y,z`）：

@@ -214,9 +214,9 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
 
 | 阶段 | 内容 | 状态 |
 |---|---|---|
-| P0 | 单样本最小闭环（Step 1+2+3+4+6），验证"点云投影落点 ⊂ 图像渲染目标区域" | ✅ `p0_final` 五项全过 |
+| P0 | 单样本最小闭环（Step 1+2+3+4+6），验证"点云投影落点 ⊂ 图像渲染目标区域" | ✅ `fig_temple` 全过 |
 | P1 | 单模态各自跑通（LiDAR 注入 / Blender 渲染独立可复现） | ✅ |
-| P2 | 联合 + 真值落库（Step 5）+ 批量多目标 | ✅ `p0_batch_v3`，5 sample × 2 obj → 5/5 all_pass |
+| P2 | 联合 + 真值落库（Step 5）+ 批量多目标 | ✅ `fig_two_final`，同帧 2 目标、不同类目 |
 | P3 | 跨帧轨迹 + 规模化 + 数据集导出 | ✅（mini 版）10 scene / 87 帧 / 20 track / 94 标注，devkit verify 通过；**trainval 150 scene 待跑** |
 
 ### 5.2 单样本验收（`validation_report.json`）
@@ -233,7 +233,7 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
 
 ![批量双目标注入](docs/summary/figs/fig3_batch_two_objects.jpg)
 
-**图 3 · 同帧 2 目标批量注入（`p0_batch_v3`）**：多个模型按 `seed` 确定性随机放置（`np.random.default_rng([seed, sample_index])`），共用同一 range-image z-buffer——**目标之间互相遮挡**，单次 Blender job 渲染。
+**图 3 · 同帧 2 目标、不同类目（`fig_two_final`）**：皮卡（`vehicle.car`）与护栏（`movable_object.barrier`）共用同一套 range-image z-buffer 与一次 Blender job，各自带独立类目落库；批量放置按 `seed` 确定性可复现。
 
 - 批量（legacy 模式）：5 sample × 2 obj → **5/5 all_pass**，10 条新标注。
 - 轨迹（tracking 模式）：10 scene / 87 帧 / 20 track（时长 3–8 帧）/ **94 条新 annotation**（总 18632 = 18538 + 94），结束原因 `window_end=14 / no_camera=6`。
@@ -297,7 +297,7 @@ conda activate nusc-inject
 # 单样本回归（P0）
 python scripts/run_p0.py --config configs/p0.yaml --run-id my_run
 # 批量注入 + 落库 + 导出（仅 all_pass 进导出；tracking 由 batch.yaml 控制）
-python scripts/run_batch.py --config configs/batch.yaml --run-id p0_batch_v3
+python scripts/run_batch.py --config configs/batch.yaml --run-id my_batch
 # 只重导出（须用可信 specs.json）
 python scripts/run_batch.py --config configs/batch.yaml --export-only
 ```
