@@ -38,6 +38,11 @@
 
 ## 3. 关键结果（图文）
 
+> **本节是历史快照**：图 1–4 与下列校验数值来自 `p0_final` / `p0_batch_v3` 两次早期运行，
+> 均**早于** `size` 轴序、gap-fill、逐像素遮挡体深度等修复。当时的遮挡实际上未生效
+> （遮挡体几何错位），因此图中的合成效果不代表当前行为。
+> **当前指标**见 §4 的导出状态表与 [`docs/measurements.md`](../measurements.md)（M8）。
+
 ### 3.1 单样本 P0 验收（run-id `p0_final`）
 
 ![前后对比](figs/fig1_before_after.jpg)
@@ -91,17 +96,18 @@ export_report.json
 | 指标 | 值 |
 |---|---|
 | 覆盖场景 | 10 个 scene（scene-0061 … scene-1100） |
-| 注入帧数 | 64 sample |
-| 注入轨迹 | 16 tracks 实现（计划 20），64 帧标注 |
-| 新增 annotation | **71** 条（总 18609 = 18538 + 71） |
+| 注入帧数 | 59 sample |
+| 注入轨迹 | 15 tracks 实现（计划 20），59 帧标注 |
+| 新增 annotation | **66** 条（总 18604 = 18538 + 66） |
 | 新 category / attribute | `movable_object.anomaly` / `vehicle.moving` |
-| 遮挡生效 | 6.5% 目标像素被场景正确隐藏 |
+| 校验通过 | 59/59 帧（`end_reasons` 中无 `validation_failed`） |
+| 遮挡成效 | 6.85% 目标像素被场景正确隐藏，0 违例无理由遮挡 |
 | devkit 校验 | `verify.ok = true`，0 problems |
 
-> 本节数字对应 `sample_annotation.size` 轴序修复（nuScenes `[w,l,h]`）**之后**的导出。
-> 修复前同配置是 87 帧 / 20 轨迹 / 94 标注、且遮挡像素为 0（遮挡体几何错位导致遮挡完全失效），
-> 详见 `data/outputs/size_axis_rerun/DIFF.md`。上方 §3 的图与数字来自更早的 `p0_final` /
-> `p0_batch_v3` 运行，同样早于该修复。
+> 本节数字对应 `sample_annotation.size` 轴序修复、原始回波 gap-fill、遮挡体逐像素
+> 深度、边缘目标覆盖率豁免等改动**之后**的导出。修复前同配置是 87 帧 / 20 轨迹 /
+> 94 标注、且遮挡像素为 0（遮挡体几何错位导致遮挡完全失效）。逐项实测的复现方式与
+> 原始输出见 [`docs/measurements.md`](../measurements.md)。
 
 下游用法：
 
@@ -168,10 +174,15 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
 - ✅ 批量多目标注入（互遮挡 + 确定性 seed），5/5 all_pass（`p0_batch_v3`）
 - ✅ 跨帧轨迹注入 10 scene，devkit 加载与渲染通过
 - ✅ 标准 nuScenes 数据集导出 + token 确定性 + md5 对账
-- ✅ 修复 `sample_annotation.size` 轴序（nuScenes `[w,l,h]` vs 模型框 `x,y,z`）：
+- ✅ **修复 `sample_annotation.size` 轴序**（nuScenes `[w,l,h]` vs 模型框 `x,y,z`）：
   该 bug 同时让落库框在 x-y 转 90°、并使真实车辆的遮挡体几何错位导致**遮挡完全失效**
-  （修复前 94 个相机帧 `occluded` 全为 0）。修复后 6.5% 目标像素被正确隐藏，
-  重新导出 64 帧 / 16 轨迹 / 71 标注（`size_axis_rerun`）
+  （修复前 94 个相机帧 `occluded` 全为 0）
+- ✅ **补齐遮挡链路**：原始回波按角度 gap-fill 填扫描线空洞、遮挡体面改逐像素平面深度
+  （误遮 3049 → 648）、物体深度洞填补且未知即可见、`depth_margin` 随深度缩放、
+  边缘目标覆盖率豁免；新增遮挡理由一致性校验（0 违例）
+- ✅ **规格保护**：退化 `scale` 输入、`from_global` 的 scale 回收、尺寸合理性阈值、
+  `.obj/.fbx` 轴转换、漂移守卫改为形状敏感（bbox + 表面积 + 面积质心）
+- ✅ 当前导出：59 帧 / 15 轨迹 / 66 标注，59/59 帧校验通过，devkit `verify.ok`
 
 **后续（超出当前范围）**
 - 批量到 150 scene / 训练数据集生产

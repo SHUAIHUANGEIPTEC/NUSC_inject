@@ -87,12 +87,25 @@ python scripts/run_batch.py --config configs/batch.yaml --skip-export   # 只注
 
 ```bash
 pip install -e ".[dev]"    # 或直接用 conda 环境里已装好的 pytest
-pytest                     # 87 个单元测试，~0.3s，不需要 nuScenes 数据与 Blender
+pytest                     # 134 passed，≈0.5s，不需要 nuScenes 数据与 Blender
 ```
 
-单测覆盖：坐标链与四元数往返、ego↔lidar 放置换算、球面 range-image 分箱、双向遮挡语义（含稠密遮挡体）、
-深度遮挡与 alpha 合成、配置继承、`det_token` 确定性与跨帧 `prev/next` 链接。
+| 文件 | 用例 | 覆盖 |
+|---|---|---|
+| `test_anchor.py` | 21 | 缩放 / ego↔lidar 换算 / gt 变换对 / `from_global` scale 回收 / 退化保护 |
+| `test_lidar_channel.py` | 19 | 双向遮挡语义 / 遮挡体 / gap-fill / 强度 / 注入 |
+| `test_occluders.py` | 15 | `[w,l,h]` 轴序 / 盒面点 / 逐像素面深度 / gap-fill 半径 |
+| `test_annotation.py` | 14 | 确定性 token / 导出表 / 跨帧 prev-next 链 |
+| `test_composite.py` | 12 | z-buffer / 可见性规则 / 深度洞 / 深度比例 margin |
+| `test_validate.py` | 12 | 遮挡理由一致性 / 尺寸阈值 / 不可测覆盖率豁免 |
+| `test_range_image.py` | 11 | 球面分箱 / `dilate_min_map` |
+| `test_transforms.py` | 10 | 四元数往返 / 坐标链 / `view_points` |
+| `test_mesh_points.py` | 9 | Y-up 转换 / 表面积+质心签名 / 细分不变性 |
+| `test_nusc_io.py` | 6 | `.pcd.bin` I/O |
+| `test_config.py` | 5 | `extends` 合并 / 路径解析 |
+
 需要真实数据的端到端校验由运行时 Step-6 输出的 `validation_report.json` 给出。
+各次决策背后的实测复现记录见 [`docs/measurements.md`](docs/measurements.md)。
 
 ## 产物
 
@@ -156,21 +169,22 @@ patch_devkit_colormap(nusc, 'movable_object.anomaly')  # render_* 前打一次
 
 ## 验收结果
 
-v1.0-mini 全量轨迹注入（10 scene，`seed=42`，`configs/batch.yaml`）：
+v1.0-mini 全量轨迹注入（10 scene，`seed=42`，`configs/batch.yaml`，59 帧）：
 
-| 校验项 | 结果 | 阈值 |
+| 校验项 | 实测 | 阈值 |
 |---|---|---|
-| 坐标链往返残差 | <1e-13 | <1e-6 |
-| num_lidar_pts（逐目标） | 全部 >0 | >0 |
-| 尺寸合理性（最长边） | 全部在 `[min_size_m, max_size_m]` 内 | 0.05 – 40 m |
-| Blender 内参自检 | <0.1 px | <2 px |
-| 点投影 ⊂ α 区域覆盖率 | 均值 ~0.98（边缘目标可为 0） | ≥0.85 |
-| 3D 框投影 IoU | 均值 ~0.85（触边豁免） | ≥0.5 |
-| **遮挡理由一致性** | 每个被遮挡像素都有更近的场景几何 | 0 违例 |
-| 导出标注 | devkit 校验 `ok`，0 problems | — |
+| 校验通过 | 59/59 帧，0 失败 | — |
+| 坐标链往返残差 | 4.6e-13 | <1e-6 |
+| num_lidar_pts（逐目标） | 70 – 12000，全部 >0 | >0 |
+| 尺寸合理性（最长边） | 2.54 – 3.94 m | 0.05 – 40 m |
+| Blender 内参自检 | 0.733 px | <2 px |
+| 点投影 ⊂ α 区域覆盖率 | 均值 0.995（最小 0.971；1 例不可测按边缘豁免） | ≥0.85 |
+| 3D 框投影 IoU | 均值 0.844（3 例低于阈值均为触边豁免） | ≥0.5 |
+| **遮挡理由一致性** | **0 违例**（被遮挡像素均有更近几何） | 0 |
+| 遮挡成效 | 6.85% 目标像素被场景正确隐藏 | — |
 
-> 验收数字会随放置采样与遮挡实现变动；逐帧明细见各次运行的 `validation_report.json`
-> 与 `export_report.json`。
+> 上述数字随放置采样与遮挡实现变动，逐帧明细见各次运行的 `validation_report.json`
+> 与 `export_report.json`；每项的复现方式与原始输出见 [`docs/measurements.md`](docs/measurements.md)。
 
 ## 目录结构
 
