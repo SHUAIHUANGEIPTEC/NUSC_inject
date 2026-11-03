@@ -3,15 +3,27 @@
 向 nuScenes 的 LiDAR 点云与相机图像中**同步、几何一致**地注入第三方（OoD）3D 目标，
 并生成**标准 nuScenes 格式**的标注数据集导出。方法详见 `nuScenes点云图像同步注入方法.md`。
 
-> 📄 **图文工作总结**（含管线流程图、注入前后对比、验收数据、踩坑记录）：[docs/summary/README.md](docs/summary/README.md)
+![注入前后对比](docs/summary/figs/fig1_before_after.jpg)
+
+*左：原始 nuScenes `CAM_FRONT`；右：注入蓝色皮卡后——同一位姿同时驱动点云与图像。*
+
+> 📄 **图文工作总结**（含管线流程图、验收数据、踩坑记录）：[docs/summary/README.md](docs/summary/README.md)
+> ｜ 模型输入格式与参数：[docs/model-input.md](docs/model-input.md)
+> ｜ 实测数据存档：[docs/measurements.md](docs/measurements.md)
 
 ## 设计核心
+
+![管线流程](docs/summary/figs/fig0_pipeline.png)
 
 - **单一真值源**：每个目标的 `T_model2global`（含归一化 + 缩放 + 位姿）同时驱动 LiDAR 与相机两个通道。
 - **LiDAR 通道**：trimesh 面积加权表面采样 → 球面 range-image 双向遮挡（物体↔场景，场景点不去重；`sample_annotation` 3D 框作为稠密遮挡体填补无回波面）→ Lambertian 强度。
 - **相机通道**：Blender 3.6 headless 渲染 RGBA 前景（Cycles CPU）→ 深度遮挡判定（LiDAR 稀疏深度 + `sample_annotation` 框面逐像素光栅化）→ 软 alpha 合成。
 - **一致性校验**：注入点投影 ⊂ α 区域覆盖率、3D 框投影 IoU、坐标链往返、Blender 内参自检、num_lidar_pts。
 - **Step5 落库**：`category/attribute/instance/sample_annotation` 四表追加行，导出可被 `nuscenes-devkit` 直接加载的数据集。
+
+两个通道共用一套真值，因此注入的 LiDAR 点（下图红）会精确落在渲染轮廓（绿）内：
+
+![跨模态一致性](docs/summary/figs/fig2_overlay_bev.jpg)
 
 ## 环境搭建
 

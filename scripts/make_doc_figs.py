@@ -65,6 +65,25 @@ def _label(im: Image.Image, text: str) -> Image.Image:
     return out
 
 
+def _grid(cells, cols=2) -> Image.Image:
+    """Lay labelled panels out in a grid."""
+    cells = [_label(im, t) for im, t in cells]
+    cw = max(c.width for c in cells)
+    ch = max(c.height for c in cells)
+    rows = (len(cells) + cols - 1) // cols
+    out = Image.new("RGB", (cols * cw + GAP * (cols - 1),
+                            rows * ch + GAP * (rows - 1)), (255, 255, 255))
+    for i, c in enumerate(cells):
+        r, col = divmod(i, cols)
+        out.paste(c, (col * (cw + GAP), r * (ch + GAP)))
+    return out
+
+
+def _half(im: Image.Image, width=780) -> Image.Image:
+    h = int(im.height * width / im.width)
+    return im.resize((width, h), Image.LANCZOS)
+
+
 def _row(panels) -> Image.Image:
     panels = [_label(im, t) for im, t in panels]
     w = sum(p.width for p in panels) + GAP * (len(panels) - 1)
@@ -109,6 +128,11 @@ def main():
     ap.add_argument("--two", required=True, help="a two-object run dir")
     ap.add_argument("--dataset", default=str(ROOT / "data" / "nuscenes"))
     ap.add_argument("--out", default=str(ROOT / "docs" / "summary" / "figs"))
+    ap.add_argument("--compare", action="append", default=[],
+                    metavar="LABEL=DIR",
+                    help="a case for fig5, repeatable (2-4 cases read best)")
+    ap.add_argument("--axis", nargs=2, metavar=("GOOD_DIR", "BAD_DIR"),
+                    default=None, help="fig6: correctly vs wrongly oriented model")
     args = ap.parse_args()
 
     single, two = _frame_dir(Path(args.single)), _frame_dir(Path(args.two))
@@ -143,8 +167,29 @@ def main():
     _over_checkerboard(single / "blender" / f"{CAM}.png").save(
         out / "fig4_blender_rgba.jpg", quality=92)
 
+    # ---- fig5: placement / category / material comparison ---------------
+    if args.compare:
+        cells = []
+        for item in args.compare:
+            label, _, run = item.partition("=")
+            d = _frame_dir(Path(run))
+            cells.append((_half(_load(d / "composite" / f"{CAM}.jpg")), label))
+        _grid(cells, cols=2).save(out / "fig5_case_comparison.jpg", quality=92)
+
+    # ---- fig6: axis convention (correct vs lying down) ------------------
+    if args.axis:
+        good, bad = (_frame_dir(Path(x)) for x in args.axis)
+        cells = [(_half(_load(good / "composite" / f"{CAM}.jpg")),
+                  "correct: Z-up -> Y-up before export (upright)"),
+                 (_half(_load(bad / "composite" / f"{CAM}.jpg")),
+                  "wrong: Z-up written into glTF (lies flat)")]
+        _grid(cells, cols=2).save(out / "fig6_axis_convention.jpg", quality=92)
+
     for name in ("fig1_before_after.jpg", "fig2_overlay_bev.jpg",
-                 "fig3_batch_two_objects.jpg", "fig4_blender_rgba.jpg"):
+                 "fig3_batch_two_objects.jpg", "fig4_blender_rgba.jpg",
+                 "fig5_case_comparison.jpg", "fig6_axis_convention.jpg"):
+        if not (out / name).exists():
+            continue
         im = Image.open(out / name)
         print(f"  {out / name}  {im.size}")
 
