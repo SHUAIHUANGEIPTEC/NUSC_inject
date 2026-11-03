@@ -162,3 +162,49 @@ def test_resolve_scale_rejects_a_range_valued_target_outside_batch():
     """run_batch.py samples the range first; anchor must not silently coerce."""
     with pytest.raises(ValueError, match="scalar"):
         anchor.resolve_scale({"target_max_dim_m": [2.5, 4.0]}, RAW_SIZE)
+
+
+# -------------------------------------- from_global scale recovery (regression)
+
+
+def test_scale_from_linear_recovers_a_uniform_scale():
+    R = tf.quat_to_rot(tf.yaw_to_quat(0.7))
+    assert anchor._scale_from_linear(R * 2.5) == pytest.approx(2.5)
+    assert anchor._scale_from_linear(R * 0.001) == pytest.approx(0.001)
+
+
+def test_scale_from_linear_rejects_a_non_uniform_linear_part():
+    M = np.diag([2.0, 3.0, 2.0])
+    with pytest.raises(ValueError, match="not a uniform scale"):
+        anchor._scale_from_linear(M)
+
+
+def test_scale_from_linear_rejects_a_singular_matrix():
+    with pytest.raises(ValueError, match="non-positive"):
+        anchor._scale_from_linear(np.zeros((3, 3)))
+
+
+def test_from_global_recovers_scale_from_the_matrix_not_the_config(meta, ground_cloud):
+    """A stale config scale must not silently contaminate rotation and size."""
+    base = anchor.build_gt(_cfg(scale=2.0), meta, ground_cloud,
+                           raw_bbox=(RAW_MIN, RAW_SIZE))
+    frozen = np.array(base["T_model2global"], dtype=float).reshape(4, 4)
+
+    # config now claims a DIFFERENT scale than the one baked into `frozen`
+    cfg = _cfg(scale=9.9, placement={
+        "strategy": "frozen", "from_global": frozen.ravel().tolist()})
+    gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+    assert gt["scale"] == pytest.approx(2.0)          # recovered, not 9.9
+    assert np.allclose(gt["size"], [RAW_SIZE[1] * 2.0, RAW_SIZE[0] * 2.0,
+                                    RAW_SIZE[2] * 2.0])
+    assert np.allclose(gt["rotation"], base["rotation"], atol=1e-6)
+    assert np.allclose(gt["translation"], base["translation"], atol=1e-6)
+
+
+def test_from_global_rejects_a_matrix_that_is_not_scale_times_rotation(meta, ground_cloud):
+    bad = np.eye(4)
+    bad[0, 0], bad[1, 1] = 2.0, 3.0
+    cfg = _cfg(placement={"from_global": bad.ravel().tolist()})
+    with pytest.raises(ValueError, match="not a uniform scale"):
+        anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))

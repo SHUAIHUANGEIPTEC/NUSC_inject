@@ -145,11 +145,11 @@ patch_devkit_colormap(nusc, 'movable_object.anomaly')  # render_* 前打一次
   约半条束间距）做**角度**膨胀——米制半径填不满束间距，因为束间距的物理尺寸随距离增长。
   合成实测：墙后目标存活 88% → 0%，空场/墙前目标 100% 存活（不过度遮挡）。
 - **仍存在的遮挡边界（使用时需知）**：
-  - `occluders.box_depth_raster` 对每个框面取**整面最近角深度**，斜面上最多偏保守约 2 m；
-    穿过相机平面的面会被跳过。
+  - 遮挡体框面按**逐像素平面深度**光栅化（`occluders._face_depth`）；穿过相机平面的面会被跳过。
   - `composite` 的物体深度是**表面采样点投影**的 z-buffer，不是 Blender 渲染的 z-pass。
     α 掩码内未采到的像素先做邻域填补，仍填不上则按「未知即可见」回退，不会被误删。
   - 边缘目标（掩码触边）：LiDAR 点可能整体落在画幅外 → 覆盖率 = 0 → 校验失败，属于已知限制。
+  - 物体点超出俯仰 FOV 会被 LiDAR 通道丢弃，而相机侧仍渲染——极高目标两通道可能不一致。
 - 自定义类别渲染：devkit `render_*` 需 `patch_devkit_colormap(nusc, category_name)` 注册颜色。
 - 放置在图像边缘/画幅外的目标：α 像素 < `min_alpha_px` 的相机跳过；掩码触边时 bbox IoU 豁免（覆盖率仍约束）。
 

@@ -147,3 +147,53 @@ def test_occluder_scene_near_is_empty_without_boxes():
     near = occ.occluder_scene_near([], 16, H=8, W=8, elev_min_deg=-30.0,
                                    elev_max_deg=10.0, range_max=80.0)
     assert np.isinf(near).all()
+
+
+# --------------------------------------------- per-pixel planar face depth
+
+
+def test_face_depth_interpolates_across_an_oblique_face():
+    """A tilted face must not be stamped with its nearest corner depth."""
+    # four coplanar corners spanning 4 m of depth
+    pc = np.array([[ -4.0, -1.0,  8.0],
+                   [ -4.0,  1.0,  8.0],
+                   [  4.0,  1.0, 12.0],
+                   [  4.0, -1.0, 12.0]])
+    K = np.array([[10.0, 0.0, 10.0], [0.0, 10.0, 10.0], [0.0, 0.0, 1.0]])
+    mask = np.zeros((20, 20), bool)
+    mask[5:15, 2:18] = True
+
+    got = occ._face_depth(pc, K, mask)
+    assert got is not None
+    _, _, z = got
+    finite = z[np.isfinite(z)]
+    assert len(finite) > 0
+    spread = float(finite.max() - finite.min())
+    assert spread > 2.0, f"depth spread {spread:.2f} m — interpolation is working"
+    # the gradient must span both ends of the face, not sit at the nearest corner
+    assert finite.min() < 8.5 and finite.max() > 11.5
+
+
+def test_face_depth_falls_back_for_a_degenerate_face():
+    K = np.eye(3)
+    mask = np.ones((3, 3), bool)
+    pc = np.array([[0.0, 0.0, 5.0]] * 4)          # zero-area face
+    assert occ._face_depth(pc, K, mask) is None
+
+
+def test_box_depth_raster_gives_a_depth_gradient_on_a_tilted_car():
+    """End to end: a car rotated about the camera's y axis spans metres of depth."""
+    yaw = np.array([[np.cos(0.5), 0.0, np.sin(0.5)],
+                    [0.0, 1.0, 0.0],
+                    [-np.sin(0.5), 0.0, np.cos(0.5)]])
+    box = {"center": np.array([0.0, 0.0, 10.0]),
+           "size": np.array([2.0, 8.0, 2.0]),      # [w, l, h]
+           "R": yaw}
+    K = np.array([[10.0, 0.0, 10.0], [0.0, 10.0, 10.0], [0.0, 0.0, 1.0]])
+    depth = occ.box_depth_raster([box], K, np.eye(4), width=20, height=20)
+    fin = depth[np.isfinite(depth)]
+    assert len(fin) > 0
+    assert float(fin.max() - fin.min()) > 1.5, (
+        f"spread {fin.max() - fin.min():.2f} m — should vary across the tilted body")
+    # nothing should be as near as the old nearest-corner stamp
+    assert float(fin.min()) > 6.0

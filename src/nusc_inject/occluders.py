@@ -114,12 +114,46 @@ _FACE_QUADS = (
 )
 
 
+def _face_depth(pc, K, mask):
+    """Per-pixel depth of a planar camera-frame quad.
+
+    A box face is planar, so a ray ``z * K^{-1}[u, v, 1]`` meets it at
+    ``z = d / (n · dir)``. Stamping the whole face with its NEAREST corner
+    depth — the previous behaviour — over-occludes by up to the face's own
+    depth extent on an oblique face (metres, not centimetres), which then
+    forced ``depth_margin`` to be large enough to undo it.
+
+    Returns ``(rows, cols, z)`` for the masked pixels, or ``None`` if the
+    face is degenerate and the caller should fall back to the corner depth.
+    """
+    p0, p1, p2 = pc[0], pc[1], pc[2]
+    n = np.cross(p1 - p0, p2 - p0)
+    norm = float(np.linalg.norm(n))
+    if norm < 1e-9:
+        return None
+    n = n / norm
+    d = float(n @ p0)
+
+    vs, us = np.where(mask)
+    fx, fy = float(K[0, 0]), float(K[1, 1])
+    cx, cy = float(K[0, 2]), float(K[1, 2])
+    dirs = np.stack([(us.astype(np.float64) - cx) / fx,
+                     (vs.astype(np.float64) - cy) / fy,
+                     np.ones(len(us))], axis=1)
+    denom = dirs @ n
+    z = np.full(len(us), np.inf)
+    ok = np.abs(denom) > 1e-9
+    z[ok] = d / denom[ok]
+    z[~(z > 0.1)] = np.inf               # behind the camera or non-finite
+    return vs, us, z
+
+
 def box_depth_raster(boxes, K, T_l2c, width, height):
     """Rasterize occluder boxes into a (H,W) depth buffer (inf = empty).
 
-    Each of the six faces is projected and filled; a pixel gets the face's
-    nearest corner depth (slightly conservative — bodies only ever occlude,
-    never reveal). Boxes crossing the camera plane are skipped.
+    Each of the six faces is projected and filled; a pixel gets that face's
+    per-pixel planar depth (bodies only ever occlude, never reveal). Boxes
+    crossing the camera plane are skipped.
     """
     depth = np.full((height, width), np.inf, dtype=np.float32)
     K = np.asarray(K, dtype=float)
@@ -139,8 +173,14 @@ def box_depth_raster(boxes, K, T_l2c, width, height):
             mask = np.zeros((height, width), np.uint8)
             cv2.fillConvexPoly(mask, poly, 1, lineType=cv2.LINE_AA)
             m = mask.astype(bool)
-            if m.any():
+            if not m.any():
+                continue
+            got = _face_depth(pc, K, m)
+            if got is None:
                 depth[m] = np.minimum(depth[m], float(pc[:, 2].min()))
+            else:
+                rows, cols, z = got
+                np.minimum.at(depth, (rows, cols), z.astype(np.float32))
     return depth
 
 

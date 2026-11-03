@@ -43,6 +43,27 @@ def resolve_scale(model_cfg: dict, raw_size) -> float:
     return s
 
 
+def _scale_from_linear(M) -> float:
+    """Uniform scale of ``M = R @ s`` (R orthonormal), with a consistency check.
+
+    The 3x3 of a frozen ``T_model2global`` is exactly that product, so every
+    column norm equals ``s``. Recovering ``s`` from the matrix — rather than
+    re-deriving it from the config — means a frozen pose and its recorded
+    ``gt['size']`` can never drift apart: if the config's scale no longer
+    matches the one baked into ``from_global``, dividing by it would silently
+    contaminate both the rotation and the size.
+    """
+    norms = np.linalg.norm(np.asarray(M, dtype=float), axis=0)
+    s = float(norms.mean())
+    if not np.isfinite(s) or s <= 0:
+        raise ValueError(f"from_global 3x3 has non-positive scale: {norms}")
+    if not np.allclose(norms, s, rtol=1e-5, atol=1e-9):
+        raise ValueError(
+            "from_global 3x3 is not a uniform scale times a rotation "
+            f"(column norms {norms})")
+    return s
+
+
 def _normalize_T(raw_bbox_min: np.ndarray) -> np.ndarray:
     """Model frame: raw frame with bbox-min moved to origin."""
     T = np.eye(4)
@@ -85,7 +106,8 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
         # frozen world pose (cross-frame tracking): same T_model2global every frame
         T_model2global = np.asarray(pl["from_global"], dtype=float).reshape(4, 4)
         T_model2lidar = np.linalg.inv(T_l2g) @ T_model2global
-        scale = resolve_scale(model_cfg, raw_size)
+        # recover the scale from the frozen matrix, not from the config
+        scale = _scale_from_linear(T_model2global[:3, :3])
         # 3x3 of T_model2global = R_l2g @ R_pose * scale (S/T_norm add no rotation)
         R_global_box = T_model2global[:3, :3] / scale
         R_pose = np.linalg.inv(T_l2g)[:3, :3] @ R_global_box
