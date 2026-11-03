@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nusc-inject"
+dynamic = ["version"]
+description = "Synchronized third-party object injection for nuScenes (LiDAR + camera)"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.26,<2",
+    "opencv-python>=4.9",
+    "pyyaml>=6",
+    "trimesh>=4",
+    # only imported by annotation.verify_export (devkit load + render check)
+    "nuscenes-devkit>=1.1",
+]
+
+[project.optional-dependencies]
+# scripts/download_models.py only
+models = ["objaverse"]
+dev = ["pytest>=8"]
+
+[project.urls]
+Homepage = "https://github.com/SHUAIHUANGEIPTEC/NUSC_inject"
+Repository = "https://github.com/SHUAIHUANGEIPTEC/NUSC_inject"
+Issues = "https://github.com/SHUAIHUANGEIPTEC/NUSC_inject/issues"
+
+[tool.setuptools.dynamic]
+version = { attr = "nusc_inject.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"

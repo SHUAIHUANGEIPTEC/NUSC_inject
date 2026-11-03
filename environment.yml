@@ -1,0 +1,22 @@
+name: nusc-inject
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10.22
+  # --- direct imports ---
+  - numpy=1.26.4
+  - pyyaml=6.0.3
+  - opencv=5.0.0          # provides cv2 (pipeline / visualize / occluders)
+  # --- dev ---
+  - pytest=9.2.0
+  - pip
+  - pip:
+      # direct imports
+      - trimesh==5.2.0            # mesh loading + area-weighted surface sampling
+      - nuscenes-devkit==1.2.0    # annotation.verify_export (devkit load + render)
+      # transitive of nuscenes-devkit, listed here so the env is fully pinned
+      - pyquaternion==0.9.9
+      - scipy==1.15.2
+      - pillow==12.3.0
+      - matplotlib==3.10.9
+      - tqdm==4.70.0

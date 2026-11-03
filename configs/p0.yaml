@@ -1,0 +1,29 @@
+# 单样本单目标（P0 快速验证）。共享块见 configs/base.yaml。
+extends: base.yaml
+
+run_id: p0_demo01
+
+dataset:
+  sample_index: 0
+
+model:
+  # 任意 .glb / .gltf / .obj / .fbx / .ply，放到 data/models/ 后改这里即可
+  # （scripts/download_models.py 可从 Objaverse 拉取示例模型）
+  path: data/models/model.glb
+  target_max_dim_m: 3.0     # longest bbox edge after scaling (auto scale)
+  scale: null               # explicit uniform scale; overrides target_max_dim_m
+  albedo: 0.6
+  intensity_gain_k: 200.0
+  category: anomaly
+
+placement:
+  strategy: ego_offset
+  # offsets in the EGO frame: x forward, y left, z up (not the lidar frame:
+  # nuScenes LIDAR_TOP is mounted ~-90° yaw vs ego)
+  offset_in_ego: [12.0, 0.0, 0.0]
+  yaw_in_ego_deg: 30.0
+  ground:
+    search_radius_m: 4.0
+    z_percentile: 15.0
+
+output_dir: data/outputs/p0

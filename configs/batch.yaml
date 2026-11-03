@@ -1,0 +1,44 @@
+# 批量注入 + 标注落库 + 数据集导出。共享块见 configs/base.yaml。
+extends: base.yaml
+
+run_id: p0_batch01
+output_dir: data/outputs/p0
+
+dataset:
+  # tracking mode: scenes to run (null = all scenes in the version)
+  # e.g. list of scene names for a subset; trainval 150 later = set scenes there
+  scenes: null
+  # legacy (non-tracking) mode: explicit sample list (used when tracking off
+  # or when --samples is passed)
+  sample_indices: [0, 1, 2, 3, 4]
+
+# model pool (batch picks one per object; albedo/gain from here)
+models:
+  - path: data/models/model.glb       # 任意模型；可并列多个，按 pool 随机取
+    target_max_dim_m: [2.5, 4.0]      # uniform random range (or a scalar)
+    albedo: 0.6
+    intensity_gain_k: 200.0
+    category: anomaly
+
+objects:
+  count: 2                            # tracks per scene (tracking) / objects per sample (legacy)
+  strategy: random_forward
+  forward_range_m: [8.0, 30.0]        # ego-frame x at placement time
+  lateral_range_m: [-4.0, 4.0]        # ego-frame y
+  yaw_in_ego_deg_range: [0.0, 360.0]
+  min_spacing_m: 6.0                  # legacy mode: reject closer placements
+  ground:
+    search_radius_m: 4.0
+    z_percentile: 15.0
+  seed: 42                            # deterministic placements
+  tracking:
+    enabled: true
+    length: [3, 8]                    # frames per track (clipped by scene end)
+    forward_range_m: [12.0, 35.0]     # start farther so tracks survive longer
+
+annotation:
+  category_name: movable_object.anomaly
+  attribute_name: vehicle.moving
+  visibility_token: "4"
+
+export_dir: data/exports/nuscenes-od-p0   # nuScenes-format export dataroot
