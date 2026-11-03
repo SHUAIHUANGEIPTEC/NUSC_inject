@@ -24,11 +24,12 @@ lidar_channel:
   out_format: n5          # n5 = native nuScenes (N,5); n4 = KITTI-style (N,4)
 
 camera_channel:
-  engine: CYCLES
-  cycles_device: CPU
+  engine: CYCLES          # CYCLES | BLENDER_EEVEE | WORKBENCH（传给 Blender）
+  cycles_device: CPU      # CPU | GPU（仅 CYCLES 生效）
   cycles_samples: 64
   frustum_margin_px: 40
-  lighting: fixed         # fixed | random
+  # 光照固定为「白色世界 + 单太阳」，不提供配置项——遮挡判定与内参自检
+  # 需要可复现的图像，不允许每次运行变化。
 
 composite:
   alpha_threshold: 0.05

@@ -12,9 +12,11 @@ job.json schema (mode="render"):
              "width": 1600, "height": 900}, ...],
   "output_dir": ".../blender",
   "engine": "CYCLES", "cycles_device": "CPU", "cycles_samples": 64,
-  "lighting": "fixed" | "random",
   "selfcheck_max_pixel_err": 2.0
 }
+
+Lighting is deliberately fixed (white world + one sun) so the depth/alpha tests
+and the intrinsics self-check are repeatable; there is no per-run variation.
 
 job.json schema (mode="selfcheck"): synthetic-cube intrinsics/axis verification.
 Writes result.json next to the job file (or "result_path" if given).
@@ -74,15 +76,20 @@ def _import_bpy():
     return bpy
 
 
-def reset_scene(bpy):
+def reset_scene(bpy, job=None):
+    """Empty scene with deterministic lighting; engine/device come from the job."""
+    job = job or {}
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
-    scene.render.engine = "CYCLES"
-    scene.cycles.device = "CPU"
+    scene.render.engine = str(job.get("engine", "CYCLES"))
+    if hasattr(scene, "cycles"):
+        scene.cycles.device = str(job.get("cycles_device", "CPU"))
     scene.render.film_transparent = True
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
-    # deterministic soft lighting: white world + one sun
+    # deterministic soft lighting: white world + one sun. Both channels need a
+    # stable image so the depth/alpha tests and the self-check stay repeatable,
+    # so there is deliberately no per-run lighting variation.
     world = bpy.data.worlds.new("World")
     scene.world = world
     world.use_nodes = True
@@ -286,7 +293,7 @@ def render_one(bpy, job, cam_spec, obj_meshes, output_dir):
 
 def run_selfcheck(bpy, job, result_path):
     """Synthetic cube + known K: verify intrinsics mapping and axis convention."""
-    reset_scene(bpy)
+    reset_scene(bpy, job)
     add_sun(bpy)
 
     width, height = 1600, 900
@@ -401,7 +408,7 @@ def main():
         return
 
     # ---- render mode (supports multi-object job["objects"], legacy single keys) ----
-    reset_scene(bpy)
+    reset_scene(bpy, job)
     add_sun(bpy)
     output_dir = job["output_dir"]
     os.makedirs(output_dir, exist_ok=True)

@@ -123,7 +123,6 @@ def run(cfg, meta, gts, out_dir: Path) -> dict:
         "engine": cfg["camera_channel"].get("engine", "CYCLES"),
         "cycles_device": cfg["camera_channel"].get("cycles_device", "CPU"),
         "cycles_samples": int(cfg["camera_channel"].get("cycles_samples", 64)),
-        "lighting": cfg["camera_channel"].get("lighting", "fixed"),
         "selfcheck_max_pixel_err": float(cfg["blender"].get("selfcheck_max_pixel_err", 2.0)),
     }
     result = run_blender(cfg, job, out_dir)

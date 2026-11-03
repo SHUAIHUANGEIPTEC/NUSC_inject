@@ -20,7 +20,7 @@ def test_det_token_is_stable_and_token_shaped():
 
 def test_build_sample_spec_carries_geometry_and_point_counts():
     gts = [{"translation": [1.0, 2.0, 3.0], "size": [1.0, 2.0, 3.0],
-            "rotation": [1.0, 0.0, 0.0, 0.0], "category": "anomaly",
+            "rotation": [1.0, 0.0, 0.0, 0.0], "category": "movable_object.anomaly",
             "model_path": "m.glb", "ground_z_lidar": -1.7}]
     lidar_result = {"num_obj_kept_per_object": [42]}
     files = {"lidar_filename": "samples/LIDAR_TOP/x.pcd.bin",
@@ -42,7 +42,7 @@ def test_build_sample_spec_carries_geometry_and_point_counts():
 
 def test_build_sample_spec_without_track_keys_still_works():
     gts = [{"translation": [0.0] * 3, "size": [1.0] * 3,
-            "rotation": [1.0, 0.0, 0.0, 0.0], "category": "anomaly",
+            "rotation": [1.0, 0.0, 0.0, 0.0], "category": "movable_object.anomaly",
             "model_path": "m.glb", "ground_z_lidar": 0.0}]
     spec = ann_mod.build_sample_spec(SAMPLE, gts, {"num_obj_kept_per_object": [1]},
                                      {"cam_filenames": {}, "cam_output_paths": {}})
@@ -145,7 +145,7 @@ def test_export_adds_one_instance_and_annotation_per_object(tmp_path):
             "cam_filenames": {}, "cam_output_paths": {},
             "objects": [{"translation": [0.0, 0.0, 0.0],
                          "size": [1.34, 3.0, 1.12],   # nuScenes [w, l, h]
-                         "rotation": [1.0, 0.0, 0.0, 0.0], "category": "anomaly",
+                         "rotation": [1.0, 0.0, 0.0, 0.0], "category": "movable_object.anomaly",
                          "model_path": "m.glb", "num_lidar_pts": 7,
                          "ground_z_lidar": 0.0, "track_key": None}]}
     out = ann_mod.export_dataset(cfg, [spec], tmp_path / "export")
@@ -173,7 +173,7 @@ def test_export_chains_tracked_objects_across_frames(tmp_path):
             "lidar_filename": None, "lidar_output_path": None,
             "cam_filenames": {}, "cam_output_paths": {},
             "objects": [{"translation": [0.0, 0.0, 0.0], "size": [1.0, 1.0, 1.0],
-                         "rotation": [1.0, 0.0, 0.0, 0.0], "category": "anomaly",
+                         "rotation": [1.0, 0.0, 0.0, 0.0], "category": "movable_object.anomaly",
                          "model_path": "m.glb", "num_lidar_pts": 3,
                          "ground_z_lidar": 0.0, "track_key": "track0"}]})
     out = ann_mod.export_dataset(cfg, specs, tmp_path / "export")
@@ -189,3 +189,60 @@ def test_export_chains_tracked_objects_across_frames(tmp_path):
     # the middle annotation links to both neighbours
     middle = by_token[insts[0]["first_annotation_token"]]["next"]
     assert by_token[middle]["prev"] == insts[0]["first_annotation_token"]
+
+
+# ------------------------------------------------- per-object categories
+
+
+def _spec_with_categories(names, track_key=None):
+    objs = [{"translation": [0.0, 0.0, 0.0], "size": [1.0, 1.0, 1.0],
+             "rotation": [1.0, 0.0, 0.0, 0.0], "category": n,
+             "model_path": "m.glb", "num_lidar_pts": 5,
+             "ground_z_lidar": 0.0, "track_key": track_key}
+            for n in names]
+    return {"sample_token": "s0", "scene_token": "sc", "timestamp": 0,
+            "lidar_filename": None, "lidar_output_path": None,
+            "cam_filenames": {}, "cam_output_paths": {}, "objects": objs}
+
+
+def test_export_supports_one_category_per_object(tmp_path):
+    cfg = _fake_dataset(tmp_path)
+    spec = _spec_with_categories(["movable_object.anomaly",
+                                  "movable_object.barrier"])
+    out = ann_mod.export_dataset(cfg, [spec], tmp_path / "export")
+
+    assert out["n_new_annotations"] == 2
+    assert out["category_names"] == ["movable_object.anomaly",
+                                     "movable_object.barrier"]
+    assert len(set(out["category_tokens"].values())) == 2
+
+    meta = tmp_path / "export" / "v1.0-mini"
+    cats = {c["token"]: c["name"] for c in json.loads((meta / "category.json").read_text())}
+    insts = json.loads((meta / "instance.json").read_text())
+    assert sorted(cats[i["category_token"]] for i in insts) == [
+        "movable_object.anomaly", "movable_object.barrier"]
+
+
+def test_objects_without_a_category_use_the_export_default(tmp_path):
+    cfg = _fake_dataset(tmp_path)          # default = movable_object.anomaly
+    spec = _spec_with_categories([None])
+    out = ann_mod.export_dataset(cfg, [spec], tmp_path / "export")
+    assert out["category_names"] == ["movable_object.anomaly"]
+
+
+def test_a_track_may_not_span_two_categories(tmp_path):
+    cfg = _fake_dataset(tmp_path)
+    specs = [_spec_with_categories(["movable_object.anomaly"], track_key="t0"),
+             _spec_with_categories(["movable_object.barrier"], track_key="t0")]
+    specs[0]["sample_token"], specs[1]["sample_token"] = "s0", "s1"
+    with pytest.raises(ValueError, match="spans multiple categories"):
+        ann_mod.export_dataset(cfg, specs, tmp_path / "export")
+
+
+def test_same_category_shares_one_token(tmp_path):
+    cfg = _fake_dataset(tmp_path)
+    spec = _spec_with_categories(["movable_object.anomaly",
+                                  "movable_object.anomaly"])
+    out = ann_mod.export_dataset(cfg, [spec], tmp_path / "export")
+    assert out["n_new_annotations"] == 2
+    assert len(out["category_tokens"]) == 1

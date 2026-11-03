@@ -54,6 +54,10 @@ data/
 `models[].path`（批量模型池）指向该文件。支持 `.glb / .gltf / .obj / .fbx / .ply`
 （glTF 的 Y-up 会按 Blender 导入规则自动换算，见「已验证事实」）。
 
+> 模型格式、材质处理方式、每个参数的含义与常见坑，见
+> **[`docs/model-input.md`](docs/model-input.md)** — 其中说明了相机通道原样透传模型材质、
+> LiDAR 通道只用一个标量 `albedo`，以及两者亮度需要人工对齐这一点。
+
 ## 运行
 
 ### 单样本单目标（P0 快速验证）

@@ -154,7 +154,7 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
     quat = tf.rot_to_quat(R_global_box)
 
     gt = {
-        "category": model_cfg.get("category", "anomaly"),
+        "category": model_cfg.get("category"),   # nuScenes category name; None = use the export default
         "albedo": float(model_cfg.get("albedo", 0.5)),
         "intensity_gain_k": float(model_cfg.get("intensity_gain_k", 200.0)),
         "translation": [float(v) for v in center_g],

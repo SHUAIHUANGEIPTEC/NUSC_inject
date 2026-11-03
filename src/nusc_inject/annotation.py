@@ -106,7 +106,7 @@ def export_dataset(cfg, specs, export_root) -> dict:
     Returns {"export_root", "n_new_annotations", "category_token", ...}.
     """
     ann_cfg = cfg.get("annotation", {})
-    category_name = ann_cfg.get("category_name", "movable_object.anomaly")
+    default_category = ann_cfg.get("category_name", "movable_object.anomaly")
     attribute_name = ann_cfg.get("attribute_name", "vehicle.moving")
     visibility_token = str(ann_cfg.get("visibility_token", "4"))
 
@@ -137,13 +137,33 @@ def export_dataset(cfg, specs, export_root) -> dict:
     if visibility_token not in {v["token"] for v in visibilities}:
         raise ValueError(f"visibility_token {visibility_token!r} not in visibility.json")
 
-    category_token = _ensure_category(
-        categories, category_name,
-        "third-party / anomaly object injected by nusc-inject")
+    # Each object may carry its own nuScenes category name (``model_cfg.category``);
+    # objects without one fall back to ``annotation.category_name``. Previously a
+    # single global category was used for every injected object, so the per-model
+    # field was silently dropped.
+    cat_tokens: dict = {}
+
+    def _category_for(obj) -> str:
+        return obj.get("category") or default_category
+
+    def _category_token(obj) -> str:
+        name = _category_for(obj)
+        if name not in cat_tokens:
+            cat_tokens[name] = _ensure_category(
+                categories, name,
+                "third-party object injected by nusc-inject")
+        return cat_tokens[name]
+
     attribute_token = _ensure_attribute(
         attributes, attribute_name, "attribute of injected objects")
 
     n_new = 0
+    # The exact rows we add. Verification selects by token, not by category:
+    # an injected object may reuse an EXISTING nuScenes category (e.g.
+    # human.pedestrian.adult), and selecting by category would then sweep in
+    # every real annotation of that class.
+    created_ann_tokens: list = []
+    created_inst_tokens: list = []
 
     def _ann_token(spec, oi):
         return det_token("annotation", spec["sample_token"], oi)
@@ -174,15 +194,22 @@ def export_dataset(cfg, specs, export_root) -> dict:
 
     seen_single = set()
     for key, members in tracks.items():
+        names = {_category_for(specs[si]["objects"][oi]) for si, oi in members}
+        if len(names) != 1:
+            raise ValueError(
+                f"track {key!r} spans multiple categories {sorted(names)}; "
+                f"a nuScenes instance has exactly one category")
         inst_token = det_token("instance", key)
         ann_tokens = [_ann_token(specs[si], oi) for si, oi in members]
         instances.append({
             "token": inst_token,
-            "category_token": category_token,
+            "category_token": _category_token(specs[members[0][0]]["objects"][members[0][1]]),
             "nbr_annotations": len(members),
             "first_annotation_token": ann_tokens[0],
             "last_annotation_token": ann_tokens[-1],
         })
+        created_inst_tokens.append(inst_token)
+        created_ann_tokens.extend(ann_tokens)
         for j, ((si, oi), ann_tok) in enumerate(zip(members, ann_tokens)):
             _add_ann(specs[si], specs[si]["objects"][oi], inst_token, ann_tok,
                      ann_tokens[j - 1] if j > 0 else "",
@@ -199,11 +226,13 @@ def export_dataset(cfg, specs, export_root) -> dict:
             ann_token = _ann_token(spec, oi)
             instances.append({
                 "token": inst_token,
-                "category_token": category_token,
+                "category_token": _category_token(obj),
                 "nbr_annotations": 1,
                 "first_annotation_token": ann_token,
                 "last_annotation_token": ann_token,
             })
+            created_inst_tokens.append(inst_token)
+            created_ann_tokens.append(ann_token)
             _add_ann(spec, obj, inst_token, ann_token, "", "")
             n_new += 1
 
@@ -251,7 +280,10 @@ def export_dataset(cfg, specs, export_root) -> dict:
         "version": version,
         "n_new_annotations": n_new,
         "n_samples_injected": len(specs),
-        "category_token": category_token,
+        "category_names": sorted(cat_tokens),
+        "category_tokens": dict(cat_tokens),
+        "annotation_tokens": created_ann_tokens,
+        "instance_tokens": created_inst_tokens,
         "attribute_token": attribute_token,
         "n_sample_files": n_files,
     }
@@ -269,21 +301,44 @@ def patch_devkit_colormap(nusc, category_name: str = "movable_object.anomaly",
     nusc.colormap.setdefault(category_name, rgb)
 
 
-def verify_export(export_root, version, n_expected, category_name=None) -> dict:
-    """Load the export with nuscenes-devkit and check our rows are queryable."""
+def verify_export(export_root, version, n_expected, category_names=None,
+                  instance_tokens=None) -> dict:
+    """Load the export with nuscenes-devkit and check our rows are queryable.
+
+    ``instance_tokens`` is the authoritative selector: the exact instances
+    ``export_dataset`` added. Selecting by token rather than by category is
+    required because an injected object may reuse an **existing** nuScenes
+    category (e.g. ``human.pedestrian.adult``) — a category-based query would
+    then sweep in every real annotation of that class and report thousands of
+    unrelated rows.
+
+    ``category_names`` only affects colormap registration for the devkit
+    render helpers.
+    """
     from nuscenes.nuscenes import NuScenes
 
     nusc = NuScenes(version=version, dataroot=str(export_root), verbose=False)
-    if category_name:
-        patch_devkit_colormap(nusc, category_name)
-    cat_token_by_name = {c["name"]: c["token"] for c in nusc.category}
-    if category_name:
-        new_cat_tokens = {cat_token_by_name[category_name]} if category_name in cat_token_by_name else set()
+    names = set(category_names or [])
+    for name in names:
+        patch_devkit_colormap(nusc, name)
+
+    if instance_tokens is not None:
+        wanted = set(instance_tokens)
+        new_inst = [i for i in nusc.instance if i["token"] in wanted]
+        if len(new_inst) != len(wanted):
+            missing = len(wanted) - len(new_inst)
+            raise RuntimeError(
+                f"{missing} injected instance(s) missing from the export")
     else:
-        new_cat_tokens = {t for n, t in cat_token_by_name.items() if "anomaly" in n}
-    new_inst = [i for i in nusc.instance if i["category_token"] in new_cat_tokens]
+        cat_token_by_name = {c["name"]: c["token"] for c in nusc.category}
+        new_cat_tokens = ({cat_token_by_name[n] for n in names
+                           if n in cat_token_by_name} if names else
+                          {t for n, t in cat_token_by_name.items() if "anomaly" in n})
+        new_inst = [i for i in nusc.instance if i["category_token"] in new_cat_tokens]
+
+    new_inst_tokens = {i["token"] for i in new_inst}
     new_anns = [a for a in nusc.sample_annotation
-                if a["instance_token"] in {i["token"] for i in new_inst}]
+                if a["instance_token"] in new_inst_tokens]
     problems = []
     if len(new_anns) != n_expected:
         problems.append(f"expected {n_expected} new anns, found {len(new_anns)}")

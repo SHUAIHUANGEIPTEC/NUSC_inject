@@ -324,7 +324,8 @@ def main():
 
     report = annotation.verify_export(
         export_dir, cfg["dataset"]["version"], n_expected,
-        category_name=cfg.get("annotation", {}).get("category_name"))
+        category_names=out.get("category_names"),
+        instance_tokens=out.get("instance_tokens"))
     log.info("verify: %s", report)
     with open(export_dir / "export_report.json", "w") as f:
         json.dump({"summary": summary, "export": out, "verify": report},

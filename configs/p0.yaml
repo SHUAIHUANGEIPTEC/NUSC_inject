@@ -14,7 +14,7 @@ model:
   scale: null               # explicit uniform scale; overrides target_max_dim_m
   albedo: 0.6
   intensity_gain_k: 200.0
-  category: anomaly
+  category: movable_object.anomaly
 
 placement:
   strategy: ego_offset

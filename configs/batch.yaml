@@ -18,7 +18,7 @@ models:
     target_max_dim_m: [2.5, 4.0]      # uniform random range (or a scalar)
     albedo: 0.6
     intensity_gain_k: 200.0
-    category: anomaly
+    category: movable_object.anomaly
 
 objects:
   count: 2                            # tracks per scene (tracking) / objects per sample (legacy)
