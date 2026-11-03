@@ -22,7 +22,7 @@ import cv2
 import numpy as np
 
 from . import transforms as tf
-from .range_image import spherical_bins as _spherical_bins
+from .range_image import dilate_min_map, spherical_bins as _spherical_bins
 
 
 def _face_grid(n_per_face):
@@ -33,14 +33,25 @@ def _face_grid(n_per_face):
     return u.ravel(), v.ravel()
 
 
+def _wlh_half_extents(size, scale=1.0):
+    """Half-extents along the BOX axes for a nuScenes ``size = [w, l, h]``.
+
+    nuScenes runs the box length along x and the width along y (devkit
+    ``Box.corners``), so size[0]=w is the y extent and size[1]=l the x extent.
+    Every consumer of an annotation box must go through here — reading
+    size[0] as x silently rotates a car 90 deg in the ground plane.
+    """
+    s = np.asarray(size, dtype=float) * float(scale)
+    return s[1] / 2.0, s[0] / 2.0, s[2] / 2.0
+
+
 def box_surface_points(center, size, R, n_per_face, shrink=1.0):
     """Points on the six faces of one oriented box.
 
-    center (3,) lidar frame, size (3,) nuScenes [w, l, h] (x, y, z),
+    center (3,) lidar frame, size (3,) nuScenes [w, l, h] (x extent = size[1]),
     R (3,3) box->lidar rotation, shrink scales the box (<1 avoids over-occlusion).
     """
-    s = np.asarray(size, dtype=float) * float(shrink)
-    hx, hy, hz = s / 2.0
+    hx, hy, hz = _wlh_half_extents(size, shrink)
     u, v = _face_grid(n_per_face)
     faces = []
     for sign in (1.0, -1.0):
@@ -114,8 +125,8 @@ def box_depth_raster(boxes, K, T_l2c, width, height):
     K = np.asarray(K, dtype=float)
     T_l2c = np.asarray(T_l2c, dtype=float).reshape(4, 4)
     for b in boxes:
-        s = np.asarray(b["size"], dtype=float) / 2.0
-        corners = np.array([[sx * s[0], sy * s[1], sz * s[2]]
+        hx, hy, hz = _wlh_half_extents(b["size"])
+        corners = np.array([[sx * hx, sy * hy, sz * hz]
                             for sx in (-1, 1) for sy in (-1, 1) for sz in (-1, 1)])
         cc = tf.transform_pts(T_l2c, corners @ np.asarray(b["R"]).T
                               + np.asarray(b["center"]))
@@ -138,9 +149,9 @@ def occluder_scene_near(boxes, n_per_face, H, W, elev_min_deg, elev_max_deg,
     """Min range per range-image bin from occluder bodies, with gap filling.
 
     Box surface points are sparse relative to the bin grid; each point dilates
-    by an adaptive radius (``spacing_m`` of arc length at its own range) so the
-    gaps between returns inside a body are filled. Returns (H,W) float64 with
-    inf for bins without an occluder.
+    by a constant **metric** footprint (``spacing_m`` of arc length at its own
+    range) so the gaps between samples on a face are filled. Returns (H,W)
+    float64 with inf for bins without an occluder.
     """
     if not boxes:
         return np.full((H, W), np.inf, dtype=np.float64)
@@ -150,34 +161,55 @@ def occluder_scene_near(boxes, n_per_face, H, W, elev_min_deg, elev_max_deg,
 
     d_az = 2.0 * np.pi / W              # azimuth rad per bin
     d_el = (elev_max - elev_min) / H    # elevation rad per bin
-    # bucket points by range so one radius serves a whole bucket
-    for b in boxes:
-        pts = box_surface_points(b["center"], b["size"], b["R"], n_per_face)
-        row, col, rng, in_fov = _spherical_bins(pts, H, W, elev_min, elev_max)
-        ok = in_fov & (rng <= range_max) & (rng > 0.1)
-        if not ok.any():
-            continue
-        row, col, rng = row[ok], col[ok], rng[ok]
-        # adaptive bin radius from arc length at each point's range
-        r_col = np.maximum(1, np.ceil(spacing_m / np.maximum(rng * d_az, 1e-6)).astype(np.int64))
-        r_row = np.maximum(1, np.ceil(spacing_m / np.maximum(rng * d_el, 1e-6)).astype(np.int64))
-        # bucket by radius so the window loop stays vectorized per bucket
-        key = r_col * 10000 + r_row
-        for k in np.unique(key):
-            sel = key == k
-            rr, cc, zz = row[sel], col[sel], rng[sel]
-            rc, rrw = int(k // 10000), int(k % 10000)
-            r0 = max(0, int(rr.min()) - rrw)
-            r1 = min(H, int(rr.max()) + rrw + 1)
-            c0 = max(0, int(cc.min()) - rc)
-            c1 = min(W, int(cc.max()) + rc + 1)
-            win = near[r0:r1, c0:c1]          # basic-slice VIEW (writes land in `near`)
-            # per-point minimum over its own window
-            rr0 = np.clip(rr - rrw - r0, 0, None)
-            rr1 = np.clip(rr + rrw - r0 + 1, None, r1 - r0)
-            cc0 = np.clip(cc - rc - c0, 0, None)
-            cc1 = np.clip(cc + rc - c0 + 1, None, c1 - c0)
-            for i in range(len(rr)):
-                sub = win[rr0[i]:rr1[i], cc0[i]:cc1[i]]
-                np.minimum(sub, zz[i], out=sub)
-    return near
+    all_pts = np.vstack([box_surface_points(b["center"], b["size"], b["R"], n_per_face)
+                         for b in boxes])
+    row, col, rng, in_fov = _spherical_bins(all_pts, H, W, elev_min, elev_max)
+    ok = in_fov & (rng <= range_max) & (rng > 0.1)
+    row, col, rng = row[ok], col[ok], rng[ok]
+    r_col = np.maximum(1, np.ceil(spacing_m / np.maximum(rng * d_az, 1e-6)).astype(np.int64))
+    r_row = np.maximum(1, np.ceil(spacing_m / np.maximum(rng * d_el, 1e-6)).astype(np.int64))
+    return dilate_min_map(near, row, col, rng, r_row, r_col)
+
+
+def scene_gap_fill_deg(cfg) -> float:
+    """Angular radius (degrees) used to dilate RAW scene returns.
+
+    A solid unannotated surface (wall, building, canopy) only returns on the
+    sensor's discrete beams — nuScenes LIDAR_TOP is a VLP-32, 32 beams spread
+    over ~1.33 deg, while the range image has 512 rows at 0.081 deg. Dilating
+    each return by a constant *metric* radius cannot bridge those gaps at
+    every range (the gap grows with distance), so the fill radius is angular.
+
+    The default 0.7 deg is about half the VLP-32 elevation beam spacing, which
+    is the minimum that closes the gap; see ``tests/test_range_image.py``.
+    """
+    oc = cfg.get("scene_occluders") or {}
+    return float(oc.get("scene_gap_fill_deg", 0.7))
+
+
+def scene_near_from_returns(scene_pts, H, W, elev_min_deg, elev_max_deg,
+                            range_max, fill_deg):
+    """Min range per bin from raw scene returns, dilated by ``fill_deg``.
+
+    Same output convention as ``occluder_scene_near``, so the two can be
+    merged with ``np.minimum`` into one scene-side z-buffer.
+    """
+    elev_min = np.radians(elev_min_deg)
+    elev_max = np.radians(elev_max_deg)
+    near = np.full((H, W), np.inf, dtype=np.float64)
+    if len(scene_pts) == 0:
+        return near
+
+    d_az = 2.0 * np.pi / W
+    d_el = (elev_max - elev_min) / H
+    row, col, rng, in_fov = _spherical_bins(np.asarray(scene_pts, dtype=float),
+                                            H, W, elev_min, elev_max)
+    ok = in_fov & (rng <= range_max) & (rng > 0.1)
+    row, col, rng = row[ok], col[ok], rng[ok]
+    # constant ANGULAR footprint -> constant radius in bins at every range
+    rad = np.radians(float(fill_deg))
+    r_col = np.maximum(1, np.ceil(rad / d_az).astype(np.int64))
+    r_row = np.maximum(1, np.ceil(rad / d_el).astype(np.int64))
+    return dilate_min_map(near, row, col, rng,
+                          np.full(len(row), r_row),
+                          np.full(len(row), r_col))

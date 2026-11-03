@@ -10,11 +10,12 @@ import numpy as np
 
 from . import occluders as occ_mod
 from . import transforms as tf
+from .range_image import dilate_min_map
 from .range_image import spherical_bins as _spherical_bins
 
 
 def occlude(scene_pts, obj_pts, H, W, elev_min_deg, elev_max_deg, range_max,
-            occluder_near=None):
+            occluder_near=None, scene_fill_deg=0.7):
     """Two-sided occlusion in the spherical z-buffer.
 
     scene_pts (N,4+), obj_pts (M,4+) — both in the LIDAR frame.
@@ -24,6 +25,10 @@ def occlude(scene_pts, obj_pts, H, W, elev_min_deg, elev_max_deg, range_max,
       data and are never deduplicated);
     - object points keep only the nearest per bin, and only when strictly
       nearer than the nearest scene point in that bin;
+    - the scene-side z-buffer dilates each raw return by ``scene_fill_deg``
+      (an ANGULAR radius) so a solid unannotated surface occludes — raw
+      returns only land on the sensor's discrete beams (VLP-32: 32 beams over
+      512 range-image rows) and would otherwise leak ~94% of what they hide;
     - occluder_near (H*W, optional): dense body depth per bin (from
       occluders.occluder_scene_near) merged into the scene-side z-buffer so
       sparse/no-return surfaces still occlude injected points;
@@ -42,17 +47,30 @@ def occlude(scene_pts, obj_pts, H, W, elev_min_deg, elev_max_deg, range_max,
     s_bins = bin_id[:n_scene]
     s_rng = rng[:n_scene]
     s_fov = in_fov[:n_scene]
+    s_row, s_col = row[:n_scene], col[:n_scene]
     o_bins = bin_id[n_scene:]
     o_rng = rng[n_scene:]
     o_fov = in_fov[n_scene:] & (rng[n_scene:] <= range_max) & (rng[n_scene:] > 0.1)
 
-    scene_near = np.full(n_bins, np.inf, dtype=np.float64)
-    obj_near = np.full(n_bins, np.inf, dtype=np.float64)
+    # scene-side z-buffer: raw returns, dilated so beam gaps do not leak
+    scene_near2d = np.full((H, W), np.inf, dtype=np.float64)
     if s_fov.any():
-        np.minimum.at(scene_near, s_bins[s_fov], s_rng[s_fov])
+        sr, sc, sz = s_row[s_fov], s_col[s_fov], s_rng[s_fov]
+        rad = np.radians(max(0.0, float(scene_fill_deg)))
+        if rad > 0:
+            r_col = max(1, int(np.ceil(rad / (2.0 * np.pi / W))))
+            r_row = max(1, int(np.ceil(rad / ((elev_max - elev_min) / H))))
+            dilate_min_map(scene_near2d, sr, sc, sz,
+                           np.full(len(sr), r_row), np.full(len(sr), r_col))
+        else:
+            np.minimum.at(scene_near2d, (sr, sc), sz)
     if occluder_near is not None:
-        np.minimum(scene_near, np.asarray(occluder_near, dtype=np.float64).reshape(-1),
-                   out=scene_near)
+        np.minimum(scene_near2d,
+                   np.asarray(occluder_near, dtype=np.float64).reshape(H, W),
+                   out=scene_near2d)
+    scene_near = scene_near2d.reshape(-1)
+
+    obj_near = np.full(n_bins, np.inf, dtype=np.float64)
     if o_fov.any():
         np.minimum.at(obj_near, o_bins[o_fov], o_rng[o_fov])
 
@@ -60,9 +78,13 @@ def occlude(scene_pts, obj_pts, H, W, elev_min_deg, elev_max_deg, range_max,
     drop_scene = s_fov & (obj_near[s_bins] < s_rng)
     keep_scene = np.where(~drop_scene)[0]
 
-    # object: nearest per bin AND strictly nearer than nearest scene point
+    # object: nearest per bin AND strictly nearer than nearest scene point.
+    # The nearest test allows float ties — surface samples on a common shell
+    # can land within 1 ULP of each other, and an exact `==` would drop them
+    # nondeterministically.
+    tol = 1e-9 * np.maximum(1.0, obj_near[o_bins])
     keep_obj_rel = np.where(
-        o_fov & (o_rng == obj_near[o_bins]) & (o_rng < scene_near[o_bins])
+        o_fov & (o_rng <= obj_near[o_bins] + tol) & (o_rng < scene_near[o_bins])
     )[0]
     keep_obj = keep_obj_rel.astype(np.int64)
 
@@ -130,6 +152,7 @@ def inject(scene_pts_n5, objects, cfg, occluder_boxes=None):
         float(ri["elev_min_deg"]), float(ri["elev_max_deg"]),
         float(lc.get("range_max_m", 80.0)),
         occluder_near=occl_near,
+        scene_fill_deg=occ_mod.scene_gap_fill_deg(cfg),
     )
 
     kept_ids = obj_ids[k_obj]

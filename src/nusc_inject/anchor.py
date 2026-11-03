@@ -18,12 +18,29 @@ from . import transforms as tf
 
 
 def resolve_scale(model_cfg: dict, raw_size) -> float:
-    """Uniform scale: explicit ``scale`` or auto from ``target_max_dim_m``."""
+    """Uniform scale: explicit ``scale`` or auto from ``target_max_dim_m``.
+
+    Degenerate inputs raise rather than producing inf/NaN transforms that
+    would be written into ``gt.json`` and the annotation rows unnoticed.
+    """
     s = model_cfg.get("scale")
     if s is None:
-        target = float(model_cfg.get("target_max_dim_m", 3.0))
-        s = target / float(np.max(raw_size))
-    return float(s)
+        target = model_cfg.get("target_max_dim_m", 3.0)
+        if isinstance(target, (list, tuple)):
+            raise ValueError(
+                f"target_max_dim_m must be a scalar here, got {target!r} "
+                f"(run_batch.py samples a range before calling)")
+        target = float(target)
+        if not (target > 0):
+            raise ValueError(f"target_max_dim_m must be > 0, got {target}")
+        longest = float(np.max(raw_size))
+        if not (longest > 0):
+            raise ValueError(f"model bbox has zero extent: {raw_size!r}")
+        s = target / longest
+    s = float(s)
+    if not np.isfinite(s) or s <= 0:
+        raise ValueError(f"scale must be a finite positive number, got {s}")
+    return s
 
 
 def _normalize_T(raw_bbox_min: np.ndarray) -> np.ndarray:
@@ -119,7 +136,9 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
         "albedo": float(model_cfg.get("albedo", 0.5)),
         "intensity_gain_k": float(model_cfg.get("intensity_gain_k", 200.0)),
         "translation": [float(v) for v in center_g],
-        "size": [float(v) for v in size],  # w, l, h (x, y, z extents in box frame)
+        # nuScenes sample_annotation.size = [w, l, h]: l runs along the box x
+        # axis, w along y, so the model-frame (x, y, z) extents map to [y, x, z].
+        "size": [float(size[1]), float(size[0]), float(size[2])],
         "rotation": [float(v) for v in quat],
         "scale": scale,
         "model_path": model_cfg["path"],

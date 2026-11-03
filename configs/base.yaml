@@ -32,7 +32,10 @@ camera_channel:
 
 composite:
   alpha_threshold: 0.05
-  depth_margin_m: 0.5
+  depth_margin_m: 0.2     # constant slack: calibration / extrinsics error
+  depth_margin_rel: 0.02  # range-proportional slack: sparse-depth error grows
+                          # with distance (a fixed margin would be 10% of the
+                          # depth at 5 m yet negligible at 60 m)
 
 # dense scene occluder bodies from nuScenes sample_annotation boxes:
 # fill the holes of the sparse LiDAR depth (glass / no-return surfaces) so
@@ -45,6 +48,13 @@ scene_occluders:
   min_visibility: 1       # visibility_token >= 1 (all annotated boxes)
   spacing_m: 0.15         # LiDAR bin gap-fill: dilate each return by this arc
                           # length at its own range (fills no-return surfaces)
+  scene_gap_fill_deg: 0.7 # ANGULAR radius for RAW scene returns, both channels.
+                          # nuScenes LIDAR_TOP is a VLP-32: 32 beams over ~1.33°,
+                          # while the range image has 512 rows at 0.081°. A
+                          # constant metric radius cannot bridge that gap at
+                          # every range (it grows with distance), so the fill is
+                          # angular. 0.7° ≈ half the beam spacing — the minimum
+                          # that closes it. Raise for coarser sensors.
 
 blender:
   binary: tools/blender/blender
@@ -55,3 +65,5 @@ validation:
   min_bbox_iou: 0.5
   min_alpha_px: 500
   require_num_lidar_pts_gt0: true
+  min_size_m: 0.05        # reject degenerate / absurd gt sizes (longest edge)
+  max_size_m: 40.0

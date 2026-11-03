@@ -185,7 +185,8 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
         np.save(depth_dir / f"{name}_obj_depth.npy", obj_depth)
         np.save(depth_dir / f"{name}_scene_depth.npy", scene_depth)
         per_cam[name] = {"cam_spec": cam_spec, "alpha": alpha,
-                         "visible": visible, "n_visible_px": info["n_visible_px"]}
+                         "visible": visible, "n_visible_px": info["n_visible_px"],
+                         "obj_depth": obj_depth, "scene_depth": scene_depth}
         log.info("  %s: visible=%d alpha=%d occluded=%d", name,
                  info["n_visible_px"], info["n_alpha_px"], info["n_occluded_px"])
     if not per_cam:

@@ -11,11 +11,11 @@ H, W = 64, 128
 ELEV_MIN, ELEV_MAX = -30.0, 10.0
 
 
-def _occlude(scene, obj, range_max=80.0, occluder_near=None):
+def _occlude(scene, obj, range_max=80.0, occluder_near=None, scene_fill_deg=0.0):
     scene = np.asarray(scene, dtype=float).reshape(-1, 3)
     obj = np.asarray(obj, dtype=float).reshape(-1, 3)
     return lc.occlude(scene, obj, H, W, ELEV_MIN, ELEV_MAX, range_max,
-                      occluder_near=occluder_near)
+                      occluder_near=occluder_near, scene_fill_deg=scene_fill_deg)
 
 
 def _pt(az_deg, el_deg, r):
@@ -180,3 +180,61 @@ def test_inject_n4_output_keeps_only_four_columns():
                     [{"pts_raw": pts, "normals_raw": normals,
                       "gt": {"T_model2lidar": np.eye(4).ravel().tolist()}}], cfg)
     assert out["injected"].shape[1] == 4
+
+
+# ------------------------------------------------- beam-gap fill (scene returns)
+
+
+def _beam_wall(range_m=20.0, n_beams=32, n_az=30):
+    """Solid surface that only returns on discrete scan lines (VLP-32 style)."""
+    beams = np.linspace(ELEV_MIN + 0.5, ELEV_MAX - 0.5, n_beams)
+    azs = np.linspace(-3.0, 3.0, n_az)
+    return np.array([[range_m * math.cos(np.radians(el)) * math.cos(np.radians(a)),
+                      range_m * math.cos(np.radians(el)) * math.sin(np.radians(a)),
+                      range_m * math.sin(np.radians(el))] for el in beams for a in azs])
+
+
+def _blob(range_m, az_deg, el_deg, n=10, spread=1.5):
+    out = []
+    for el in np.linspace(el_deg - spread, el_deg + spread, n):
+        for a in np.linspace(az_deg - spread, az_deg + spread, n):
+            e, aa = math.radians(el), math.radians(a)
+            out.append([range_m * math.cos(e) * math.cos(aa),
+                        range_m * math.cos(e) * math.sin(aa),
+                        range_m * math.sin(e)])
+    return np.asarray(out)
+
+
+def test_raw_scene_returns_leak_through_beam_gaps_unless_filled():
+    """The bug this fixes: discrete beams let a hidden object leak.
+
+    Without the fill a substantial share of the object behind a solid
+    gapped surface survives; with it the surface occludes completely.
+    """
+    wall = _beam_wall()
+    behind = _blob(25.0, 0.0, 0.0)
+    _, keep_open = _occlude(wall, behind, scene_fill_deg=0.0)
+    _, keep_filled = _occlude(wall, behind, scene_fill_deg=0.7)
+    assert len(keep_open) > 0                      # leaks without the fill
+    assert len(keep_open) > len(keep_filled)       # the fill strictly helps
+    assert len(keep_filled) == 0                   # and closes it completely
+
+
+def test_gap_fill_does_not_over_occlude_free_standing_objects():
+    wall = _beam_wall()
+    free = _blob(25.0, 12.0, 0.0)             # well outside the wall's extent
+    nearer = _blob(10.0, 0.0, 0.0)            # in front of the wall
+    for fill in (0.7, 1.2):
+        _, k_free = _occlude(wall, free, scene_fill_deg=fill)
+        _, k_near = _occlude(wall, nearer, scene_fill_deg=fill)
+        assert len(k_free) == len(free)
+        assert len(k_near) == len(nearer)
+
+
+def test_gap_fill_radius_is_angular_not_metric():
+    """A constant metric radius cannot bridge the same beam gap at every range."""
+    for range_m in (10.0, 25.0, 50.0):
+        wall = _beam_wall(range_m=range_m)
+        behind = _blob(range_m + 5.0, 0.0, 0.0)
+        _, keep = _occlude(wall, behind, scene_fill_deg=0.7)
+        assert len(keep) == 0, f"leaked at {range_m} m"

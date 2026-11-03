@@ -5,7 +5,7 @@ import math
 
 import numpy as np
 
-from nusc_inject.range_image import spherical_bins
+from nusc_inject.range_image import dilate_min_map, spherical_bins
 
 H, W = 64, 128
 ELEV_MIN, ELEV_MAX = math.radians(-30.0), math.radians(10.0)
@@ -60,3 +60,38 @@ def test_higher_elevation_lands_in_a_higher_row():
     low = _bins([[10.0, 0.0, -1.0]])[0][0]
     high = _bins([[10.0, 0.0, 1.0]])[0][0]
     assert high < low                 # row 0 is top / highest elevation
+
+
+# ---------------------------------------------------------------- dilate_min_map
+
+
+def test_dilate_min_map_fills_the_neighbourhood_with_the_min():
+    near = np.full((5, 5), np.inf)
+    dilate_min_map(near, row=[2], col=[2], rng=[7.0], r_row=[1], r_col=[1])
+    assert near[2, 2] == 7.0
+    assert near[1, 1] == 7.0 and near[3, 3] == 7.0
+    assert np.isinf(near[0, 0]) and np.isinf(near[4, 4])
+
+
+def test_dilate_min_map_keeps_the_nearest_of_several_samples():
+    near = np.full((5, 5), np.inf)
+    dilate_min_map(near, row=[2, 2], col=[1, 3], rng=[9.0, 4.0],
+                   r_row=[1, 1], r_col=[1, 1])
+    assert near[2, 2] == 4.0          # nearer sample wins the overlap
+
+
+def test_dilate_min_map_is_a_no_op_without_samples():
+    near = np.full((3, 3), np.inf)
+    out = dilate_min_map(near, row=[], col=[], rng=[], r_row=[], r_col=[])
+    assert out is near and np.isinf(near).all()
+
+
+def test_dilate_min_map_clips_at_the_image_border():
+    near = np.full((4, 4), np.inf)
+    dilate_min_map(near, row=[0], col=[0], rng=[3.0], r_row=[3], r_col=[3])
+    assert near[0, 0] == 3.0 and near[3, 3] == 3.0     # window clipped, not raised
+
+    near = np.full((4, 4), np.inf)
+    dilate_min_map(near, row=[0], col=[0], rng=[3.0], r_row=[1], r_col=[1])
+    assert near[1, 1] == 3.0
+    assert np.isinf(near[2, 2])                         # radius 1 does not reach

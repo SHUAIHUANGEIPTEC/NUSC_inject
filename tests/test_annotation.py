@@ -143,7 +143,8 @@ def test_export_adds_one_instance_and_annotation_per_object(tmp_path):
     spec = {"sample_token": "s", "scene_token": "sc", "timestamp": 0,
             "lidar_filename": None, "lidar_output_path": None,
             "cam_filenames": {}, "cam_output_paths": {},
-            "objects": [{"translation": [0.0, 0.0, 0.0], "size": [1.0, 1.0, 1.0],
+            "objects": [{"translation": [0.0, 0.0, 0.0],
+                         "size": [1.34, 3.0, 1.12],   # nuScenes [w, l, h]
                          "rotation": [1.0, 0.0, 0.0, 0.0], "category": "anomaly",
                          "model_path": "m.glb", "num_lidar_pts": 7,
                          "ground_z_lidar": 0.0, "track_key": None}]}
@@ -155,6 +156,8 @@ def test_export_adds_one_instance_and_annotation_per_object(tmp_path):
     assert len(anns) == 1
     assert anns[0]["num_lidar_pts"] == 7
     assert anns[0]["prev"] == "" and anns[0]["next"] == ""
+    # size must reach the annotation row verbatim and already in nuScenes order
+    assert anns[0]["size"] == [1.34, 3.0, 1.12]
 
     cats = json.loads((tmp_path / "export" / "v1.0-mini" /
                        "category.json").read_text())

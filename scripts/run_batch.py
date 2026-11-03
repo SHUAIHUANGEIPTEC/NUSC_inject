@@ -219,27 +219,43 @@ def run_tracking(cfg, meta, batch_dir: Path):
 
 
 def run_legacy_samples(cfg, meta, batch_dir: Path):
+    """N independent objects per sample.
+
+    ``drop_invisible=True`` matches the tracking path: an object the scene
+    fully occludes is dropped instead of aborting the sample, so a correctly
+    hidden object no longer fails a whole frame. The sample is skipped only
+    when nothing survives, no camera sees the set, or validation fails.
+    """
     seed = int(cfg["objects"].get("seed", 42))
     sample_indices = [int(i) for i in cfg["dataset"]["sample_indices"]]
-    specs, failed = [], []
+    specs, failed, dropped_log = [], [], []
     for idx in sample_indices:
         rng = np.random.default_rng([seed, idx])
         objects = plan_objects(cfg, idx, rng)
         out_dir = batch_dir / f"sample_{idx:04d}"
         log.info("=== sample %d: %d objects ===", idx, len(objects))
         try:
-            res = pipeline.run_sample(cfg, meta, idx, objects, out_dir)
+            res = pipeline.run_sample(cfg, meta, idx, objects, out_dir,
+                                      drop_invisible=True)
         except SystemExit as e:
             log.error("sample %d failed: %s", idx, e)
             failed.append({"sample_index": idx, "error": str(e)})
             continue
-        if not res["report"]["all_pass"]:
-            log.warning("sample %d validation FAILED", idx)
-            failed.append({"sample_index": idx, "error": "validation"})
+        status = res.get("status", "ok")
+        if status != "ok":
+            log.warning("sample %d: %s", idx, status)
+            failed.append({"sample_index": idx, "error": status})
             continue
+        dropped = list(res.get("dropped", []))
+        if dropped:
+            log.info("sample %d: dropped %d occluded object(s) %s",
+                     idx, len(dropped), dropped)
+            dropped_log.append({"sample_index": idx, "dropped": dropped})
         specs.append(res["spec"])
     summary = {"sample_indices": sample_indices, "n_ok": len(specs),
-               "failed": failed}
+               "failed": failed,
+               "n_objects_dropped": sum(len(d["dropped"]) for d in dropped_log),
+               "dropped": dropped_log}
     return specs, summary
 
 

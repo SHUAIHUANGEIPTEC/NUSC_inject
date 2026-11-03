@@ -24,13 +24,22 @@ def test_face_grid_is_a_reproducible_square_grid():
     assert np.array_equal(u, occ._face_grid(16)[0])
 
 
+def test_box_surface_points_follows_nuscenes_wlh_axis_order():
+    """nuScenes size = [w, l, h]: the length runs along box-x, the width along box-y."""
+    pts = occ.box_surface_points(np.zeros(3), [2.0, 4.6, 1.6], np.eye(3), n_per_face=4)
+    assert np.abs(pts[:, 0]).max() == pytest.approx(2.3)   # x half-extent = l/2
+    assert np.abs(pts[:, 1]).max() == pytest.approx(1.0)   # y half-extent = w/2
+    assert np.abs(pts[:, 2]).max() == pytest.approx(0.8)   # z half-extent = h/2
+
+
 def test_box_surface_points_land_on_the_box_surface():
-    center, size = np.array([1.0, 2.0, 3.0]), np.array([2.0, 4.0, 6.0])
+    center = np.array([1.0, 2.0, 3.0])
+    size = [2.0, 4.0, 6.0]              # nuScenes [w, l, h]
     pts = occ.box_surface_points(center, size, np.eye(3), n_per_face=4)
 
     assert len(pts) == 6 * 4
     local = pts - center
-    half = size / 2.0
+    half = np.array([2.0, 1.0, 3.0])    # x=l/2, y=w/2, z=h/2
     # every point sits on at least one face plane
     on_a_face = np.isclose(np.abs(local), half, atol=1e-9).any(axis=1)
     assert on_a_face.all()
@@ -40,16 +49,16 @@ def test_box_surface_points_land_on_the_box_surface():
 
 
 def test_box_surface_points_honour_rotation_and_shrink():
-    pts = occ.box_surface_points(np.zeros(3), np.array([4.0, 4.0, 4.0]),
+    pts = occ.box_surface_points(np.zeros(3), [4.0, 4.0, 4.0],
                                  np.eye(3), n_per_face=4, shrink=0.5)
     assert np.abs(pts).max() == pytest.approx(1.0)
 
+    # a 90 deg yaw about z maps box-x onto lidar-y
     yaw90 = np.array([[0.0, -1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]])
-    pts = occ.box_surface_points(np.zeros(3), np.array([8.0, 2.0, 2.0]),
-                                 yaw90, n_per_face=4)
-    # after a 90 deg yaw the long axis lies along y
-    assert np.abs(pts[:, 1]).max() == pytest.approx(4.0)
+    pts = occ.box_surface_points(np.zeros(3), [2.0, 4.0, 2.0], yaw90, n_per_face=4)
+    # box half-extents (l/2, w/2, h/2) = (2, 1, 1); the yaw swaps x/y in lidar
     assert np.abs(pts[:, 0]).max() == pytest.approx(1.0)
+    assert np.abs(pts[:, 1]).max() == pytest.approx(2.0)
 
 
 def test_build_boxes_skips_far_and_low_visibility_annotations(meta):
@@ -96,6 +105,20 @@ def test_box_depth_raster_fills_the_silhouette():
     assert depth[filled].min() == pytest.approx(4.0)
     # the centre pixel is inside the box silhouette
     assert np.isfinite(depth[10, 10])
+
+
+def test_box_depth_raster_uses_the_nuscenes_axis_order():
+    """A car-sized box must cover the road footprint, not a 90 deg-rotated one."""
+    box = {"center": np.array([0.0, 0.0, 5.0]),
+           "size": np.array([2.0, 4.6, 1.6]),      # [w, l, h]
+           "R": np.eye(3)}
+    # fx = 10 at z = 5 -> 0.5 world units per pixel
+    K = np.array([[10.0, 0.0, 10.0], [0.0, 10.0, 10.0], [0.0, 0.0, 1.0]])
+    depth = occ.box_depth_raster([box], K, np.eye(4), width=20, height=20)
+    rows, cols = np.where(np.isfinite(depth))
+    assert len(rows) > 0
+    # x extent = l = 4.6 spans more columns than the w = 2.0 spans rows
+    assert (cols.max() - cols.min()) > (rows.max() - rows.min())
 
 
 def test_box_depth_raster_skips_boxes_behind_the_camera():

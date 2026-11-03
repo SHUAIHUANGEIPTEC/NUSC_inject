@@ -86,16 +86,22 @@ sweeps/ -> 原数据   maps/ -> 原数据
 export_report.json
 ```
 
-**最终导出状态**（`export_report.json`，10-scene 轨迹版）：
+**最终导出状态**（`export_report.json`，10-scene 轨迹版，`seed=42`）：
 
 | 指标 | 值 |
 |---|---|
 | 覆盖场景 | 10 个 scene（scene-0061 … scene-1100） |
-| 注入帧数 | 87 sample |
-| 注入轨迹 | 20 tracks（时长 3–8 帧），87 帧标注 |
-| 新增 annotation | **94** 条（总 18632 = 18538 + 94） |
+| 注入帧数 | 64 sample |
+| 注入轨迹 | 16 tracks 实现（计划 20），64 帧标注 |
+| 新增 annotation | **71** 条（总 18609 = 18538 + 71） |
 | 新 category / attribute | `movable_object.anomaly` / `vehicle.moving` |
+| 遮挡生效 | 6.5% 目标像素被场景正确隐藏 |
 | devkit 校验 | `verify.ok = true`，0 problems |
+
+> 本节数字对应 `sample_annotation.size` 轴序修复（nuScenes `[w,l,h]`）**之后**的导出。
+> 修复前同配置是 87 帧 / 20 轨迹 / 94 标注、且遮挡像素为 0（遮挡体几何错位导致遮挡完全失效），
+> 详见 `data/outputs/size_axis_rerun/DIFF.md`。上方 §3 的图与数字来自更早的 `p0_final` /
+> `p0_batch_v3` 运行，同样早于该修复。
 
 下游用法：
 
@@ -160,8 +166,12 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
 **已完成**
 - ✅ P0 单样本同步注入，五项校验全过（`p0_final`）
 - ✅ 批量多目标注入（互遮挡 + 确定性 seed），5/5 all_pass（`p0_batch_v3`）
-- ✅ 跨帧轨迹注入 10 scene / 87 帧 / 20 track / 94 标注，devkit 加载与渲染通过
+- ✅ 跨帧轨迹注入 10 scene，devkit 加载与渲染通过
 - ✅ 标准 nuScenes 数据集导出 + token 确定性 + md5 对账
+- ✅ 修复 `sample_annotation.size` 轴序（nuScenes `[w,l,h]` vs 模型框 `x,y,z`）：
+  该 bug 同时让落库框在 x-y 转 90°、并使真实车辆的遮挡体几何错位导致**遮挡完全失效**
+  （修复前 94 个相机帧 `occluded` 全为 0）。修复后 6.5% 目标像素被正确隐藏，
+  重新导出 64 帧 / 16 轨迹 / 71 标注（`size_axis_rerun`）
 
 **后续（超出当前范围）**
 - 批量到 150 scene / 训练数据集生产

@@ -53,9 +53,21 @@ def test_build_gt_places_the_object_at_the_ego_offset(meta, ground_cloud):
     # ground comes from the synthetic plane, not from the object
     assert gt["ground_z_lidar"] == pytest.approx(-1.7, abs=1e-9)
 
-    # size scales uniformly, longest edge hits the target
-    assert np.allclose(gt["size"], RAW_SIZE, atol=1e-9)
+    # size scales uniformly; gt['size'] is nuScenes [w, l, h] = [y, x, z] extents
+    assert np.allclose(gt["size"], [RAW_SIZE[1], RAW_SIZE[0], RAW_SIZE[2]], atol=1e-9)
     assert gt["scale"] == pytest.approx(1.0)
+
+
+def test_gt_size_is_in_nuscenes_wlh_order(meta, ground_cloud):
+    """nuScenes sample_annotation.size = [w, l, h]: l along box-x, w along box-y."""
+    raw_size = [1.0, 2.0, 3.0]          # model-frame x=1, y=2, z=3
+    gt = anchor.build_gt(_cfg(scale=1.0), meta, ground_cloud,
+                         raw_bbox=(RAW_MIN, raw_size))
+    assert gt["size"] == [2.0, 1.0, 3.0]      # [w=y, l=x, h=z]
+
+    # raw_bbox_size stays in the model frame — it feeds the corner maths, not
+    # the nuScenes annotation row
+    assert gt["raw_bbox_size"] == raw_size
 
 
 def test_build_gt_keeps_the_two_transforms_consistent(meta, ground_cloud):
@@ -76,7 +88,8 @@ def test_build_gt_records_box_rotation_without_scale(meta, ground_cloud):
                          raw_bbox=(RAW_MIN, RAW_SIZE))
     R = tf.quat_to_rot(gt["rotation"])
     assert np.allclose(R @ R.T, np.eye(3), atol=1e-9)
-    assert np.allclose(gt["size"], np.array(RAW_SIZE) * 2.0)
+    assert np.allclose(gt["size"], [RAW_SIZE[1] * 2.0, RAW_SIZE[0] * 2.0,
+                                    RAW_SIZE[2] * 2.0])
 
 
 def test_yaw_in_ego_is_converted_to_the_lidar_mounting_frame(meta, ground_cloud):
@@ -123,3 +136,29 @@ def test_ground_falls_back_to_the_whole_cloud_when_locally_empty(meta, ground_cl
     cfg["placement"]["offset_in_ego"] = [500.0, 500.0, 0.0]
     gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
     assert gt["ground_z_lidar"] == pytest.approx(-1.7, abs=1e-9)
+
+
+# ------------------------------------------------ degenerate scale protection
+
+
+def test_resolve_scale_rejects_a_zero_extent_model():
+    with pytest.raises(ValueError, match="zero extent"):
+        anchor.resolve_scale({"target_max_dim_m": 3.0}, [0.0, 0.0, 0.0])
+
+
+def test_resolve_scale_rejects_a_non_positive_scale():
+    with pytest.raises(ValueError, match="positive"):
+        anchor.resolve_scale({"scale": 0.0}, RAW_SIZE)
+    with pytest.raises(ValueError, match="positive"):
+        anchor.resolve_scale({"scale": -1.0}, RAW_SIZE)
+
+
+def test_resolve_scale_rejects_a_non_positive_target():
+    with pytest.raises(ValueError, match="target_max_dim_m"):
+        anchor.resolve_scale({"target_max_dim_m": 0.0}, RAW_SIZE)
+
+
+def test_resolve_scale_rejects_a_range_valued_target_outside_batch():
+    """run_batch.py samples the range first; anchor must not silently coerce."""
+    with pytest.raises(ValueError, match="scalar"):
+        anchor.resolve_scale({"target_max_dim_m": [2.5, 4.0]}, RAW_SIZE)

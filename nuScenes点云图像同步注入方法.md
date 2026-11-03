@@ -85,6 +85,10 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
   "T_model2global": [[...], [...], [...], [...]] }
 ```
 
+> **`size` 轴序**：nuScenes 的 `sample_annotation.size = [w, l, h]`，其中**长度 `l` 沿框 x 轴、
+> 宽度 `w` 沿框 y 轴**（见 devkit `Box.corners`）。模型框的 `(x, y, z)` 边长对应 `[l, w, h]`，
+> 因此落库时须写成 `[y_extent, x_extent, z_extent]`，不能原样照搬。
+
 > **跨帧轨迹模式**（`objects.tracking.enabled`）：每个 track 是一个**世界系静止**目标，在起始帧放置一次，
 > 后续帧冻结同一个 `T_model2global`（`anchor.py` 的 `from_global`），跨帧 prev/next 由落库阶段串联。
 
@@ -118,8 +122,12 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
 
 把前景图贴到真实相机图像前，**必须做遮挡判定**（否则目标会"浮"在被遮挡物之上）：
 
-1. **场景深度** = LiDAR 稀疏深度（该帧投影）+ **`sample_annotation` 3D 框面逐像素光栅化**（`occluders.box_depth_raster`）的稠密遮挡体——玻璃/无回波面也能遮挡；**目标深度**用模型渲染时的 z-buffer。
-2. 对前景图每个像素：若目标深度 > 场景深度（+`depth_margin_m=0.5` 容差）则该像素不贴（保持背景）；否则按 `alpha_threshold=0.05` 软 alpha 混合贴入。
+1. **场景深度** = LiDAR 稀疏深度（该帧投影，按 `scene_gap_fill_deg` **角度膨胀**填掉扫描线之间的空洞）+ **`sample_annotation` 3D 框面逐像素光栅化**（`occluders.box_depth_raster`）的稠密遮挡体——玻璃/无回波面也能遮挡。
+   **目标深度**是模型**表面采样点投影**建的 z-buffer（`n_dense=300000` 稠密采样），
+   不是 Blender 的渲染 z-pass——采样漏掉的像素会先在 α 掩码内做邻域填补，
+   仍填不上的按「未知即可见」处理，避免把 Blender 真画出来的轮廓误删。
+2. 对前景图每个像素：若目标深度 > 场景深度（容差 = `depth_margin_m + depth_margin_rel × 深度`，
+   近处约 0.3 m、60 m 处约 1.4 m）则该像素不贴（保持背景）；否则按 `alpha_threshold=0.05` 软 alpha 混合贴入。
 3. 6 路相机各自独立执行；**α 像素 < `min_alpha_px=500` 的相机整体跳过**（目标在画幅外/擦边）。
 
 ![注入前后对比](docs/summary/figs/fig1_before_after.jpg)
@@ -176,7 +184,7 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
 |---|---|
 | **跨模态错位**（点云在 A 处、图像目标在 B 处） | 单一 `T_model2global` 锚点；Step 6 投影一致性校验兜底（覆盖率 + bbox IoU 双约束） |
 | **LiDAR 稀疏性**（远/小目标点太少） | 表面采样密度可控（`n_dense`）；仍过小则接受"α<500px 擦边相机跳过"，`num_lidar_pts` 如实记录 |
-| **遮挡一致性**（点云被挡、图像却贴了） | 两通道共用**同一份场景几何**：LiDAR 稀疏点 + `sample_annotation` 框面稠密遮挡体（`occluders.py`），同时进 range-image 与图像深度缓冲 |
+| **遮挡一致性**（点云被挡、图像却贴了） | 两通道共用**同一份场景几何**：LiDAR 稀疏点（角度膨胀填扫描线空洞）+ `sample_annotation` 框面稠密遮挡体（`occluders.py`），同时进 range-image 与图像深度缓冲；Step 6 校验**每个被遮挡像素必须有更近的场景几何**（`occlusion_justified`），无理由遮挡即判失败 |
 | **场景点被误删** | 双向遮挡：只删"被更近物体挡住的场景点"，场景点之间不去重（无物体时 34688/34688 全保） |
 | **强度 vs 亮度域不匹配** | 从材质反射率 ρ 同时推导强度（Lambertian）和渲染材质（BSDF），物理上自洽 |
 | **6 相机拼接缝** | 每路相机独立用其外参 + `ego_pose` 渲染合成，不做跨相机插值 |

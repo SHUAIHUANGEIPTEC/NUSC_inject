@@ -72,6 +72,10 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only   # 重导
 python scripts/run_batch.py --config configs/batch.yaml --skip-export   # 只注入
 ```
 
+被场景完全遮挡的目标会被**丢弃**（0 个 LiDAR 点 / 无相机可见），不会让整帧失败——
+与跨帧轨迹模式的 `drop_invisible` 行为一致；只有「全部目标都不可见」或校验不过才跳过该帧。
+丢弃情况记在 `specs.json` 的 `summary.n_objects_dropped` / `summary.dropped`。
+
 `configs/batch.yaml` 关键项：
 - `dataset.sample_indices`：要注入的 sample 列表
 - `models:`：模型池（每个目标随机取一个；`target_max_dim_m` 可为标量或 `[lo,hi]` 随机区间）
@@ -134,21 +138,38 @@ patch_devkit_colormap(nusc, 'movable_object.anomaly')  # render_* 前打一次
 - Blender 世界系 ≡ nuScenes 全局系（右手 z-up）；相机系相差绕 X 轴 180°（`diag(1,-1,-1)`）。
 - **LIDAR_TOP 传感器系相对 ego 约有 -90° 偏航安装旋转**（`R_l2e≈Rz(-90°)`）：lidar 的 +x 指向 ego 右方向、+y 指向 ego 前方。放置参数用 ego 系表达（`offset_in_ego`），anchor 内部换算。
 - **glTF 模型坐标**：trimesh 保持文件的 Y-up 坐标，Blender 导入时转为 Z-up（`(x,y,z)→(x,-z,y)`）。`mesh_points.py` 统一转换，运行时 bbox 对账（漂移 >1mm 即 fail）。
+- **`sample_annotation.size` 的轴序是 `[w, l, h]`，不是 `[x, y, z]`**：nuScenes 的框以**长度 l 为 x 轴、宽度 w 为 y 轴**（devkit `Box.corners`）。`anchor.py` 落库时把模型框的 `(x,y,z)` 边长映射为 `[y, x, z]`，`occluders._wlh_half_extents` 是唯一读入口——直接把 `size[0]` 当 x 边长会让一辆车的遮挡体在地平面转 90°。
 - **遮挡语义**：只做“物体↔场景”双向剔除（物体取每格最近且严格更近；场景点仅被更近的物体剔除），**场景点之间不去重**——保证原始点云除被遮挡处外逐点保留。
+- **稀疏回波的 gap-fill**：原始 LiDAR 回波只落在扫描线上（VLP-32：32 束 vs range-image 512 行），
+  不做膨胀时一堵未标注实墙会漏掉约 88% 的遮挡。两通道均按 `scene_gap_fill_deg`（默认 0.7°，
+  约半条束间距）做**角度**膨胀——米制半径填不满束间距，因为束间距的物理尺寸随距离增长。
+  合成实测：墙后目标存活 88% → 0%，空场/墙前目标 100% 存活（不过度遮挡）。
+- **仍存在的遮挡边界（使用时需知）**：
+  - `occluders.box_depth_raster` 对每个框面取**整面最近角深度**，斜面上最多偏保守约 2 m；
+    穿过相机平面的面会被跳过。
+  - `composite` 的物体深度是**表面采样点投影**的 z-buffer，不是 Blender 渲染的 z-pass。
+    α 掩码内未采到的像素先做邻域填补，仍填不上则按「未知即可见」回退，不会被误删。
+  - 边缘目标（掩码触边）：LiDAR 点可能整体落在画幅外 → 覆盖率 = 0 → 校验失败，属于已知限制。
 - 自定义类别渲染：devkit `render_*` 需 `patch_devkit_colormap(nusc, category_name)` 注册颜色。
 - 放置在图像边缘/画幅外的目标：α 像素 < `min_alpha_px` 的相机跳过；掩码触边时 bbox IoU 豁免（覆盖率仍约束）。
 
 ## 验收结果
 
+v1.0-mini 全量轨迹注入（10 scene，`seed=42`，`configs/batch.yaml`）：
+
 | 校验项 | 结果 | 阈值 |
 |---|---|---|
 | 坐标链往返残差 | <1e-13 | <1e-6 |
 | num_lidar_pts（逐目标） | 全部 >0 | >0 |
+| 尺寸合理性（最长边） | 全部在 `[min_size_m, max_size_m]` 内 | 0.05 – 40 m |
 | Blender 内参自检 | <0.1 px | <2 px |
-| 点投影 ⊂ α 区域覆盖率 | ≥0.98 | ≥0.85 |
-| 3D 框投影 IoU | ≥0.5（触边豁免） | ≥0.5 |
-| 批量（5 sample × 2 obj） | 5/5 通过 | — |
-| 导出标注 | 10 instance / 10 annotation，devkit 加载+渲染通过 | — |
+| 点投影 ⊂ α 区域覆盖率 | 均值 ~0.98（边缘目标可为 0） | ≥0.85 |
+| 3D 框投影 IoU | 均值 ~0.85（触边豁免） | ≥0.5 |
+| **遮挡理由一致性** | 每个被遮挡像素都有更近的场景几何 | 0 违例 |
+| 导出标注 | devkit 校验 `ok`，0 problems | — |
+
+> 验收数字会随放置采样与遮挡实现变动；逐帧明细见各次运行的 `validation_report.json`
+> 与 `export_report.json`。
 
 ## 目录结构
 
