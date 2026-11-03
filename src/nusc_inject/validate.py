@@ -7,7 +7,12 @@ from . import transforms as tf
 
 
 def _alpha_coverage(obj_pts_lidar, T_l2g, cam_spec, alpha):
-    """Fraction of object lidar points projecting inside the alpha mask."""
+    """Fraction of object lidar points projecting inside the alpha mask.
+
+    Returns ``None`` when the ratio cannot be measured — no point is in the
+    frame at all. That is a legitimate situation for an object only just
+    inside the image edge, not a coverage failure; the caller decides.
+    """
     K = np.array(cam_spec["K"], dtype=float)
     T_g2c = np.linalg.inv(np.array(cam_spec["T_cam2global"], dtype=float).reshape(4, 4))
     pts_g = tf.transform_pts(T_l2g, obj_pts_lidar[:, :3])
@@ -21,7 +26,7 @@ def _alpha_coverage(obj_pts_lidar, T_l2g, cam_spec, alpha):
     v = np.round(pix[:, 1]).astype(int)
     ok = (u >= 0) & (u < w) & (v >= 0) & (v < h)
     if not ok.any():
-        return 0.0
+        return None                      # measurable only inside the frame
     hit = alpha[v[ok], u[ok]] > 0.05
     return float(hit.sum()) / float(ok.sum())
 
@@ -198,12 +203,24 @@ def run(cfg, gts, lidar_result, cam_result, per_cam):
             or rows.max() == h - 1 or cols.max() == w - 1))
         iou_pass = True if touches_border else bool(
             iou is not None and iou >= min_iou)
+        # Coverage is unmeasurable — not zero — when no object point lands in
+        # the frame at all. That happens for an object only just inside the
+        # image edge (its LiDAR points sit outside), so the same exemption that
+        # applies to bbox IoU applies here. A measurable coverage is always
+        # binding.
+        if cov is None:
+            coverage_evaluable = False
+            coverage_pass = bool(touches_border)
+        else:
+            coverage_evaluable = True
+            coverage_pass = bool(cov >= min_cov)
         cam_reports[name] = {
             "coverage": cov,
+            "coverage_evaluable": coverage_evaluable,
             "visible_coverage": vis_cov,
             "bbox_iou": iou,
             "bbox_iou_edge_clipped": touches_border,
-            "coverage_pass": bool(cov is not None and cov >= min_cov),
+            "coverage_pass": coverage_pass,
             "bbox_iou_pass": iou_pass,
             "n_visible_px": pc.get("n_visible_px"),
             "n_hidden_px": n_hidden,

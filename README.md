@@ -148,7 +148,8 @@ patch_devkit_colormap(nusc, 'movable_object.anomaly')  # render_* 前打一次
   - 遮挡体框面按**逐像素平面深度**光栅化（`occluders._face_depth`）；穿过相机平面的面会被跳过。
   - `composite` 的物体深度是**表面采样点投影**的 z-buffer，不是 Blender 渲染的 z-pass。
     α 掩码内未采到的像素先做邻域填补，仍填不上则按「未知即可见」回退，不会被误删。
-  - 边缘目标（掩码触边）：LiDAR 点可能整体落在画幅外 → 覆盖率 = 0 → 校验失败，属于已知限制。
+  - 边缘目标（掩码触边）：LiDAR 点可能整体落在画幅外，使覆盖率**无法测量**（而非为 0）。
+    此时与 bbox IoU 同样豁免该相机的覆盖率约束；只要覆盖率可测就始终是硬约束。
   - 物体点超出俯仰 FOV 会被 LiDAR 通道丢弃，而相机侧仍渲染——极高目标两通道可能不一致。
 - 自定义类别渲染：devkit `render_*` 需 `patch_devkit_colormap(nusc, category_name)` 注册颜色。
 - 放置在图像边缘/画幅外的目标：α 像素 < `min_alpha_px` 的相机跳过；掩码触边时 bbox IoU 豁免（覆盖率仍约束）。

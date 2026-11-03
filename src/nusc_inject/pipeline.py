@@ -20,14 +20,14 @@ log = logging.getLogger("pipeline")
 
 
 def _sample_objects(objects, cfg, cache):
-    """Per unique model: surface-sample once and cache (pts, normals, bbox)."""
+    """Per unique model: surface-sample once and cache (pts, normals, bbox, vsig)."""
     for o in objects:
         path = o["model_cfg"]["path"]
         if path not in cache:
-            pts, normals, bmin, bsize = mesh_points.sample_mesh(
+            pts, normals, bmin, bsize, vsig = mesh_points.sample_mesh(
                 path, int(cfg["mesh_points"]["n_dense"]))
             cache[path] = {"pts": pts, "normals": normals,
-                           "bbox_min": bmin, "bbox_size": bsize}
+                           "bbox_min": bmin, "bbox_size": bsize, "vsig": vsig}
             log.info("sampled %s: raw bbox size=%s", Path(path).name,
                      np.round(bsize, 2))
     return cache
@@ -137,7 +137,11 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
     log.info("rendered cams: %s (max err %.4f px)",
              [c["name"] for c in cam_result["cams"]], cam_result["max_pixel_err"])
 
-    # trimesh/Blender model-frame drift guard (per rendered object)
+    # trimesh/Blender model-frame drift guard (per rendered object).
+    # The bbox alone is not enough: an axis mix-up on a mesh with a symmetric
+    # box leaves min/max unchanged. The surface signature (area + area-weighted
+    # centroid) is tessellation-independent and the centroid moves under such a
+    # permutation, so it catches what the box cannot.
     for i, ib in enumerate(cam_result.get("imported_bboxes_raw", [])):
         gt = gts[i]
         bmin_t = np.array(gt["raw_bbox_min"])
@@ -149,7 +153,22 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
         if drift > 1e-3:
             raise SystemExit(
                 f"FATAL: trimesh/Blender model-frame mismatch obj{i} "
-                f"({ib['model_path']}): drift {drift:.4f} m")
+                f"({ib['model_path']}): bbox drift {drift:.4f} m")
+        sig_t = np.asarray(mesh_cache.get(gt["model_path"], {}).get("vsig", []),
+                           dtype=float)
+        sig_b = np.asarray(ib.get("vsig", []), dtype=float)
+        if sig_t.size and sig_b.size:
+            if not np.isclose(sig_t[0], sig_b[0], rtol=1e-4):
+                raise SystemExit(
+                    f"FATAL: trimesh/Blender surface area mismatch obj{i} "
+                    f"({ib['model_path']}): {sig_t[0]:.4f} vs {sig_b[0]:.4f} m^2")
+            centroid_drift = float(np.abs(sig_t[1:] - sig_b[1:]).max())
+            if centroid_drift > 1e-3:
+                raise SystemExit(
+                    f"FATAL: trimesh/Blender model-frame mismatch obj{i} "
+                    f"({ib['model_path']}): surface centroid drift "
+                    f"{centroid_drift:.4f} m — likely an axis mix-up the bbox "
+                    f"cannot see")
 
     # ---- Step 4: compositing ----
     comp_dir = out_dir / "composite"

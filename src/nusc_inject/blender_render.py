@@ -130,6 +130,34 @@ def mesh_vertices_world(bpy, objs):
     return np.array(pts, dtype=float) if pts else np.zeros((0, 3))
 
 
+def surface_signature(objs):
+    """TWIN of nusc_inject.mesh_points.surface_signature — kept separate because
+    this file runs inside Blender's own Python, which cannot import the package.
+    Keep the two in sync; pipeline.py compares the two results as a drift guard.
+
+    Computed from world-space triangle areas and centroids (polygons are fan
+    triangulated), so it matches trimesh's sum exactly and is unaffected by the
+    importer merging duplicate vertices.
+    """
+    total = 0.0
+    acc = np.zeros(3)
+    for o in objs:
+        mw = o.matrix_world
+        world = np.array([(mw @ v.co.to_4d())[:3] for v in o.data.vertices],
+                         dtype=float)
+        for p in o.data.polygons:
+            idx = list(p.vertices)
+            for k in range(1, len(idx) - 1):
+                tri = world[[idx[0], idx[k], idx[k + 1]]]
+                cross = np.cross(tri[1] - tri[0], tri[2] - tri[0])
+                a = 0.5 * float(np.linalg.norm(cross))
+                total += a
+                acc += tri.mean(axis=0) * a
+    if total <= 0:
+        raise RuntimeError("mesh has zero surface area")
+    return np.concatenate([[total], acc / total]).tolist()
+
+
 # ---------------------------------------------------------------- intrinsics
 
 # shift candidate formula (resolved by numeric self-check):
@@ -393,6 +421,7 @@ def main():
             "model_path": spec["model_path"],
             "min": pts_imp.min(axis=0).tolist(),
             "max": pts_imp.max(axis=0).tolist(),
+            "vsig": surface_signature(meshes),
         })
         T_full = mathutils_matrix_from_numpy(_mat4(spec["T_model2global"]))
         for o in meshes:
