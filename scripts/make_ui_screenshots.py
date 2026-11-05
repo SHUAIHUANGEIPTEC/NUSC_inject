@@ -117,6 +117,26 @@ READY = "return document.getElementById('cv').width > 100 && " \
 FRAME = "return document.getElementById('cv').width > 100;"
 PREVIEW = "return document.getElementById('info').textContent.includes('size(');"
 
+SET_MODEL = """const m=document.getElementById('model');
+m.value=arguments[0];
+m.dispatchEvent(new Event('change',{bubbles:true}));
+return true;"""
+
+SET_NUMBER = """const el=document.getElementById(arguments[0]);
+el.value=arguments[1];
+el.dispatchEvent(new Event('change',{bubbles:true}));
+return true;"""
+
+SET_CAM = """const c=document.getElementById('cam');
+c.value=arguments[0];
+c.dispatchEvent(new Event('change',{bubbles:true}));
+return true;"""
+
+
+def wait_info(d, text, what, timeout=60):
+    d.wait_js(f"return document.getElementById('info').textContent"
+              f".includes({json.dumps(text)});", timeout=timeout, what=what)
+
 
 def main():
     if not shutil.which("geckodriver"):
@@ -154,7 +174,41 @@ def main():
         time.sleep(1.0)
         d.shot(OUT / "ui_tilted.png")
 
-        # 渲染（低采样，只为截图快）
+        # 点天空 -> 拒绝（射线与地面无交点），信息区给明确提示而不是错位置
+        d.js(CLICK, [1000, 120])
+        wait_info(d, "选点失败", "sky-click rejection")
+        time.sleep(0.5)
+        d.shot(OUT / "ui_sky.png")
+
+        # 换模型（长条护栏）+ 最长边 2.2 -> scale 恢复 1.0 + 偏航 90°。
+        # 护栏横跨车道，偏航一转方向在图上非常明显，同时演示「模型 / 最长边 /
+        # 偏航」三个控件（俯仰与滚转先归零，免得三种姿态混在一起看不清）。
+        d.js(SET_SLIDER, ["pitch", 0])
+        d.js(SET_SLIDER, ["roll", 0])
+        d.js(SET_SLIDER, ["yaw", 90])
+        d.js(SET_NUMBER, ["dim", 2.2])
+        d.js(SET_MODEL, ["data/models/demo_barrier.glb"])
+        wait_info(d, "2.20", "barrier preview")
+        time.sleep(1.0)
+        d.shot(OUT / "ui_yaw.png")
+
+        # 恢复皮卡与倾斜姿态，切到右侧相机 -> 演示相机下拉（同一目标换个视角）。
+        # 用 CAM_FRONT_RIGHT 而不是 LEFT：目标在 ego [20.4,-3.2]（右前方 20 m），
+        # 左侧相机的视锥里没有它，线框会被视锥裁掉、图上什么都没有。
+        # 等的是皮卡独有的 1.34（护栏放大到 3.0 m 时中间态也会出现 3.00）。
+        d.js(SET_SLIDER, ["yaw", 0])
+        d.js(SET_SLIDER, ["pitch", 18])
+        d.js(SET_SLIDER, ["roll", -10])
+        d.js(SET_NUMBER, ["dim", 3.0])
+        d.js(SET_MODEL, ["data/models/model.glb"])
+        wait_info(d, "1.34", "model restored")
+        d.js(SET_CAM, ["CAM_FRONT_RIGHT"])
+        time.sleep(2.0)                       # 等新相机的图像解码并重绘线框
+        d.shot(OUT / "ui_cam_right.png")
+
+        # 切回 CAM_FRONT 再渲染（低采样，只为截图快）
+        d.js(SET_CAM, ["CAM_FRONT"])
+        time.sleep(2.0)
         d.js("document.getElementById('samples').value=16;"
              "document.getElementById('render').click(); return true;")
         d.wait_js("const r=document.getElementById('result');"
