@@ -11,6 +11,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
+from conftest import StubMeta
 from nusc_inject import transforms as tf
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -116,3 +117,121 @@ def test_pick_respects_the_ego_frame(ui):
     expected = tf.transform_pts(T_l2e, P_LIDAR[None, :])[0]
     assert got[0] == pytest.approx(expected[0], abs=0.15)
     assert got[1] == pytest.approx(expected[1], abs=0.15)
+
+
+# ------------------------------------------------- multi-object preview
+
+_CFG = {
+    "dataset": {"sample_index": 0, "lidar_channel": "LIDAR_TOP"},
+    "model": {"path": "m.glb", "target_max_dim_m": 3.0, "albedo": 0.6,
+              "intensity_gain_k": 200.0},
+    "placement": {"strategy": "ego_offset", "offset_in_ego": [10.0, 0.0, 0.0],
+                  "yaw_in_ego_deg": 0.0,
+                  "ground": {"search_radius_m": 4.0, "z_percentile": 15.0}},
+    "mesh_points": {"n_dense": 1000},
+}
+
+
+def _mesh_box(size=(1.0, 2.0, 3.0)):
+    """A box-shaped mesh cache entry, so preview() never touches disk."""
+    lo = -np.array(size, dtype=float) / 2.0
+    corners = np.array([lo + np.array([sx, sy, sz]) * np.array(size)
+                        for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
+    return {"pts": corners, "normals": np.zeros((8, 3)),
+            "bbox_min": lo, "bbox_size": np.array(size, dtype=float),
+            "verts": corners}
+
+
+def _preview_ws(ui, scene, meta, meshes):
+    ws = object.__new__(ui.Workspace)
+    ws.cfg = _CFG
+    ws.meta = meta
+    ws._scenes = {0: scene}
+    ws._meshes = dict(meshes)
+    return ws
+
+
+def _obj(id, offset_ego, yaw=0.0):
+    return {"id": id, "model_path": "m.glb", "category": "vehicle.car",
+            "target_max_dim_m": 3.0, "albedo": 0.6,
+            "yaw": yaw, "pitch": 0.0, "roll": 0.0, "offset_ego": list(offset_ego)}
+
+
+def test_preview_returns_one_wireframe_per_object(ui):
+    ws = _preview_ws(ui, _scene(K, T_CAM2LIDAR, _ground()), StubMeta(),
+                     {"m.glb": _mesh_box()})
+    res = ws.preview({"sample_index": 0, "cam": "CAM_FRONT",
+                      "objects": [_obj("a", [10.0, 0.0, 0.0]),
+                                  _obj("b", [20.0, 2.0, 0.0], yaw=90.0)]})
+    assert [o["id"] for o in res["objects"]] == ["a", "b"]
+    for o in res["objects"]:
+        assert len(o["corners_px"]) == 8
+        assert len(o["in_front"]) == 8
+        assert len(o["edges"]) == 12
+        assert "size" in o["gt"]
+
+
+def test_preview_objects_match_single_object_previews(ui):
+    """Multi-object preview must not drift from previewing each object alone."""
+    scene = _scene(K, T_CAM2LIDAR, _ground())
+    meshes = {"m.glb": _mesh_box()}
+    objs = [_obj("a", [10.0, 0.0, 0.0]), _obj("b", [20.0, 2.0, 0.0], yaw=90.0)]
+
+    both = _preview_ws(ui, scene, StubMeta(), meshes)
+    res = both.preview({"sample_index": 0, "cam": "CAM_FRONT", "objects": objs})
+
+    for i, solo in enumerate(objs):
+        one = _preview_ws(ui, scene, StubMeta(), meshes)
+        got = one.preview({"sample_index": 0, "cam": "CAM_FRONT", "objects": [solo]})
+        assert np.allclose(res["objects"][i]["corners_px"],
+                           got["objects"][0]["corners_px"], atol=1e-6)
+        assert res["objects"][i]["in_front"] == got["objects"][0]["in_front"]
+        assert res["objects"][i]["gt"] == got["objects"][0]["gt"]
+
+
+# --------------------------------------------------------- thumbnail job
+
+def _thumb_case(size):
+    bmin = np.array([1.0, -2.0, 0.5])
+    bsize = np.array(size, dtype=float)
+    corners = np.array([bmin + np.array([sx, sy, sz]) * bsize
+                        for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
+    return bmin, bsize, corners
+
+
+def test_thumb_job_centres_the_model_at_the_origin(ui):
+    bmin, bsize, corners = _thumb_case((2.0, 4.0, 1.0))
+    job = ui._thumb_job("m.glb", bmin, bsize, corners, "/tmp/t")
+    T = np.array(job["objects"][0]["T_model2global"], dtype=float).reshape(4, 4)
+
+    centre = bmin + bsize / 2.0
+    assert np.allclose((T @ np.append(centre, 1.0))[:3], 0.0, atol=1e-9)
+    # longest edge scaled to exactly 1 m
+    assert np.allclose(T[:3, :3] @ bsize, bsize / bsize.max(), atol=1e-9)
+
+
+def test_thumb_job_fills_the_frame(ui):
+    """The camera distance must be solved per shape, not fixed at 2.2r.
+
+    A fixed multiple of the bounding radius puts a long thin box at ~35% of the
+    frame; the iterative solve lands near the 80% target for any shape.
+    """
+    for size in ((6.0, 2.4, 3.0), (0.45, 0.55, 1.75), (2.2, 0.4, 1.0)):
+        bmin, bsize, corners = _thumb_case(size)
+        job = ui._thumb_job("m.glb", bmin, bsize, corners, "/tmp/t")
+        K = np.array(job["cams"][0]["K"], dtype=float)
+        T_c2g = np.array(job["cams"][0]["T_cam2global"], dtype=float).reshape(4, 4)
+        T = np.array(job["objects"][0]["T_model2global"], dtype=float).reshape(4, 4)
+
+        uv = []
+        for sx in (0, 1):
+            for sy in (0, 1):
+                for sz in (0, 1):
+                    p = T @ np.append(bmin + np.array([sx, sy, sz]) * bsize, 1.0)
+                    pc = np.linalg.inv(T_c2g) @ p
+                    if pc[2] > 0:
+                        q = K @ pc[:3]
+                        uv.append(q[:2] / q[2])
+        uv = np.array(uv)
+        span = max(uv[:, 0].ptp(), uv[:, 1].ptp())
+        assert 0.60 * 256 <= span <= 0.95 * 256, f"{size} span={span:.1f}"

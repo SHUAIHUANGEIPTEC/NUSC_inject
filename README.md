@@ -114,8 +114,10 @@ python scripts/run_batch.py --config configs/batch.yaml --skip-export   # 只注
 python scripts/annotate_ui.py --open    # -> http://127.0.0.1:8765
 ```
 
-在相机图上**点一下选位置**（射线打到地面），拖滑条调偏航/俯仰/滚转，
-线框预览实时跟随；满意后点「渲染」跑真实管线（Blender 在后台线程，页面轮询进度）。
+在相机图上**直接操纵**：把左侧素材面板的模型缩略图或类目 chip **拖进画布**插入目标
+（拖几个就是几个，多目标一次渲染）；「移动」模式拖动改位置、「旋转」模式拖动改姿态
+（拖 X=偏航、拖 Y=俯仰、Shift+拖=滚转）；点线框选中、点「删除目标」移除。
+线框预览实时跟随，满意后点「渲染」跑真实管线（Blender 在后台线程，页面轮询进度）。
 
 - **零依赖**：只用 stdlib `http.server` + 单页 HTML/Canvas，不引入 gradio/streamlit。
 - **预览即实际**：线框由 `anchor.build_gt` 生成——和真正渲染走同一条代码路径，
@@ -129,7 +131,7 @@ python scripts/annotate_ui.py --open    # -> http://127.0.0.1:8765
 
 ```bash
 pip install -e ".[dev]"    # 或直接用 conda 环境里已装好的 pytest
-pytest                     # 155 passed，≈0.5s，不需要 nuScenes 数据与 Blender
+pytest                     # 159 passed，≈0.5s，不需要 nuScenes 数据与 Blender
 ```
 
 | 文件 | 用例 | 覆盖 |
@@ -145,7 +147,7 @@ pytest                     # 155 passed，≈0.5s，不需要 nuScenes 数据与
 | `test_mesh_points.py` | 9 | Y-up 转换 / 表面积+质心签名 / 细分不变性 |
 | `test_nusc_io.py` | 6 | `.pcd.bin` I/O |
 | `test_config.py` | 5 | `extends` 合并 / 路径解析 |
-| `test_ui_geometry.py` | 4 | 放置 UI 的反投影往返 / ego 系换算 / 天空点拒绝 |
+| `test_ui_geometry.py` | 8 | 放置 UI 的反投影往返 / ego 系换算 / 天空点拒绝 / 多目标预览一致 / 缩略图 job 框幅 |
 
 需要真实数据的端到端校验由运行时 Step-6 输出的 `validation_report.json` 给出。
 各次决策背后的实测复现记录见 [`docs/measurements.md`](docs/measurements.md)。

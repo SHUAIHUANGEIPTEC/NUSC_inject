@@ -6,10 +6,10 @@
 本机当前状态（供参照，数字会随运行增减）：
 
 ```
-data/                 2.9G
+data/                 2.8G
 ├── nuscenes          0      → 软链到仓库外部的 nuScenes 数据集
 ├── models/          28K     第三方模型
-├── outputs/        2.6G     运行产物（p0 出图素材 2.6G + ui 单次渲染）
+├── outputs/        2.7G     运行产物（p0 出图素材 2.6G + UI 渲染与缩略图）
 └── exports/        144M     nuScenes 格式导出（交付物）
 ```
 
@@ -23,6 +23,7 @@ data/                 2.9G
 | `models/` | 第三方 3D 模型（`.glb/.gltf/.obj/.fbx/.ply`） | **你提供**；或用 `scripts/make_demo_models.py` 生成演示模型 | 否 | 否 |
 | `outputs/p0/<run_id>/` | 单次运行的全部中间产物与校验报告 | `run_p0.py` / `run_batch.py` | 否 | 可，重跑即得 |
 | `outputs/ui/run_<hex>/` | 放置 UI 每次「渲染」的一次运行（结构与 p0 同构） | `scripts/annotate_ui.py` | 否 | 可，再点一次渲染即得 |
+| `outputs/ui/thumbs/<模型名>/` | 放置 UI 的模型缩略图（RGBA 透明底，256²）+ 该次 Blender 的 job.json | `annotate_ui.py` 的 `/api/thumb` | 否 | 可，下次打开面板重渲（约 1–5 s/模型） |
 | `exports/<name>/` | 标准 nuScenes 格式数据集，devkit 可直接加载 | `run_batch.py` 的导出阶段 | 否 | 谨慎，见 §5 |
 
 `nuscenes/` 建议用软链指到仓库外（数据集很大且不该混进工程目录）：
@@ -133,7 +134,7 @@ nuscenes-od-p0/
 | 想省空间 | 做法 | 省下 |
 |---|---|---|
 | 只要交付物 | 删 `data/outputs/p0/*/depth/` | 每帧约 22 MB × 相机数 |
-| 只是想清掉 UI 试拍 | 删 `data/outputs/ui/*` | 每次渲染约 25 MB |
+| 只是想清掉 UI 试拍 | 删 `data/outputs/ui/*` | 每次渲染约 25 MB，缩略图约 220 KB |
 | 导出已完成后 | 删整个 `data/outputs/p0/`——`specs.json` 与全部交付物都在 `exports/` 里 | 批量运行约 2.3 GB |
 | 只保留合格帧 | 按 `validation_report.json` 的 `all_pass` 筛 | 视失败率 |
 | 换机器/归档 | 只需 `data/exports/<name>/` + `specs.json`（原数据集除外） | — |

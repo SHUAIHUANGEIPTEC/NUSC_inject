@@ -1,9 +1,12 @@
 #!/usr/bin/env python
-"""Capture screenshots of the placement UI for the docs.
+"""Capture screenshots of the placement UI for the docs — and smoke-test it.
 
 The UI is a real page, so its screenshots go stale whenever the layout changes.
 This drives headless Firefox through the WebDriver REST API directly (stdlib
 only — no selenium, no playwright) and saves the states the docs talk about.
+Because it dispatches the same pointer / drag events a human would, a failing
+step (JS error, dropped preview, missing thumbnail) shows up as a timeout here,
+which makes it the UI's end-to-end smoke test as well as its screenshot rig.
 
     python scripts/make_ui_screenshots.py            # -> docs/summary/figs/ui_*.png
 
@@ -81,7 +84,7 @@ class Driver:
             except Exception:
                 pass
             time.sleep(0.5)
-        raise SystemExit(f"timeout waiting for {what or script[:60]}")
+        raise SystemExit(f"timeout waiting for {what or script[:70]}")
 
     def shot(self, path: Path):
         data = self.get(f"/session/{self.sid}/screenshot")["value"]
@@ -99,43 +102,52 @@ class Driver:
 
 # --------------------------------------------------------------------- steps
 
-CLICK = """const cv=document.getElementById('cv');
-const r=cv.getBoundingClientRect();
-const u=arguments[0], v=arguments[1];
-cv.dispatchEvent(new MouseEvent('click',{bubbles:true,
-  clientX:r.left+u*r.width/cv.width, clientY:r.top+v*r.height/cv.height}));
+# --- canvas interaction (the UI listens for PointerEvent, not MouseEvent) ---
+
+PEV = """const cv=document.getElementById('cv'), r=cv.getBoundingClientRect();
+const type=arguments[0], x=arguments[1], y=arguments[2], shift=arguments[3];
+cv.dispatchEvent(new PointerEvent(type,{bubbles:true,cancelable:true,
+  pointerId:1,pointerType:'mouse',isPrimary:true,button:0,
+  buttons:(type==='pointerup'?0:1),
+  clientX:r.left+x*r.width/cv.width, clientY:r.top+y*r.height/cv.height,
+  shiftKey:!!shift}));
 return true;"""
 
-SET_SLIDER = """const el=document.getElementById(arguments[0]);
-el.value=arguments[1];
-el.dispatchEvent(new Event('input',{bubbles:true}));
-document.getElementById('v'+arguments[0]).textContent=arguments[1];
+# --- HTML5 drag & drop from the palette onto the canvas ---------------------
+
+DROPOnto = """const el=document.querySelector(arguments[0]), cv=document.getElementById('cv');
+const r=cv.getBoundingClientRect(), x=arguments[1], y=arguments[2];
+const dt=new DataTransfer();
+el.dispatchEvent(new DragEvent('dragstart',{bubbles:true,cancelable:true,dataTransfer:dt}));
+const ev={bubbles:true,cancelable:true,dataTransfer:dt,
+  clientX:r.left+x*r.width/cv.width, clientY:r.top+y*r.height/cv.height};
+cv.dispatchEvent(new DragEvent('dragover',ev));
+cv.dispatchEvent(new DragEvent('drop',ev));
 return true;"""
 
 READY = "return document.getElementById('cv').width > 100 && " \
-        "document.getElementById('model').options.length > 0;"
-FRAME = "return document.getElementById('cv').width > 100;"
-PREVIEW = "return document.getElementById('info').textContent.includes('size(');"
+        "document.querySelectorAll('#thumbs .thumb').length > 0;"
+THUMBS = "return [...document.querySelectorAll('#thumbs .thumb')]" \
+         ".every(i => i.complete && i.naturalWidth > 0);"
 
-SET_MODEL = """const m=document.getElementById('model');
-m.value=arguments[0];
-m.dispatchEvent(new Event('change',{bubbles:true}));
-return true;"""
-
-SET_NUMBER = """const el=document.getElementById(arguments[0]);
-el.value=arguments[1];
-el.dispatchEvent(new Event('change',{bubbles:true}));
-return true;"""
-
-SET_CAM = """const c=document.getElementById('cam');
-c.value=arguments[0];
-c.dispatchEvent(new Event('change',{bubbles:true}));
-return true;"""
+# centroid of one object's projected box — the place a user actually clicks.
+# Clicking the drop point itself is unreliable: that pixel is the bbox-min
+# corner, i.e. ON the convex hull, where point-in-polygon is a coin toss.
+CENTROID = """const s=window.__ui().state.objects[arguments[0]];
+if (!s) return null;
+const c=s.corners_px;
+return [c.reduce((a,p)=>a+p[0],0)/c.length, c.reduce((a,p)=>a+p[1],0)/c.length];"""
 
 
-def wait_info(d, text, what, timeout=60):
-    d.wait_js(f"return document.getElementById('info').textContent"
-              f".includes({json.dumps(text)});", timeout=timeout, what=what)
+def wait_n(d, n, what, timeout=120):
+    d.wait_js(f"return window.__ui().objects.length === {n};", timeout=timeout, what=what)
+
+
+def centroid(d, i, what):
+    p = d.js(CENTROID, [i])
+    if not p:
+        raise SystemExit(f"no projected box for object {i} ({what})")
+    return p
 
 
 def main():
@@ -153,62 +165,74 @@ def main():
         OUT.mkdir(parents=True, exist_ok=True)
         d = Driver(WD_PORT)
         d.open(f"http://127.0.0.1:{UI_PORT}/")
-        d.wait_js(READY, what="page + meta")
-        time.sleep(2.5)                       # let the frame image decode
-        d.wait_js(FRAME, what="camera frame")
-
-        d.shot(OUT / "ui_overview.png")       # 首屏：图 + 控件
-
-        # 点路面右侧车道 -> 线框预览。
-        # 这个像素落在 ego≈[19.7,-3]：该处 4 m 邻域与 1 m 邻域的地面高度估计
-        # 只差 6 mm。换成地面起伏处的点，4 m 邻域 15 百分位会比近处路面低
-        # 10–18 cm，目标就会显得陷进路面（见 docs/placement-ui.md 已知限制）。
-        d.js(CLICK, [1040, 600])
-        d.wait_js(PREVIEW, what="preview after click")
+        d.wait_js(READY, what="page + palette")
+        # first load renders the thumbnails with Blender (one job per model);
+        # cached afterwards. Long timeout because this may be a cold cache.
+        d.wait_js(THUMBS, timeout=300, what="model thumbnails")
         time.sleep(1.0)
-        d.shot(OUT / "ui_preview.png")
+        d.wait_js("return document.getElementById('cv').height > 100;", what="camera frame")
 
-        # 调俯仰/滚转 -> 倾斜姿态
-        d.js(SET_SLIDER, ["pitch", 18])
-        d.js(SET_SLIDER, ["roll", -10])
-        time.sleep(1.0)
-        d.shot(OUT / "ui_tilted.png")
+        d.shot(OUT / "ui_overview.png")       # 首屏：素材面板 + 画布 + 控件
 
-        # 点天空 -> 拒绝（射线与地面无交点），信息区给明确提示而不是错位置
-        d.js(CLICK, [1000, 120])
-        wait_info(d, "选点失败", "sky-click rejection")
-        time.sleep(0.5)
+        # 拖皮卡缩略图到路面 -> 插入第 1 个目标（1040,600 是实测地面估计准的点）
+        d.js(DROPOnto, [".thumb[data-model='data/models/model.glb']", 1040, 600])
+        wait_n(d, 1, "pickup inserted")
+        time.sleep(0.8)
+        d.shot(OUT / "ui_insert.png")
+
+        # 再拖一个护栏 -> 多目标
+        d.js(DROPOnto, [".thumb[data-model='data/models/demo_barrier.glb']", 760, 640])
+        wait_n(d, 2, "barrier inserted")
+        time.sleep(0.8)
+        d.shot(OUT / "ui_two.png")
+
+        # 移动模式：把护栏拖到右边（抓取偏移：车头不跳到车身中心）
+        cu, cv = centroid(d, 1, "barrier")
+        d.js(PEV, ["pointerdown", cu, cv, False])
+        for x in range(int(cu) + 40, int(cu) + 221, 45):
+            d.js(PEV, ["pointermove", x, cv - 10, False])
+            time.sleep(0.25)
+        d.js(PEV, ["pointerup", cu + 180, cv - 10, False])
+        time.sleep(0.8)
+        d.shot(OUT / "ui_move.png")
+
+        # 旋转模式：拖 X 改偏航，Shift+拖 改滚转
+        cu, cv = centroid(d, 1, "barrier")
+        d.js("document.getElementById('modeRotate').click(); return true;")
+        time.sleep(0.2)
+        d.js(PEV, ["pointerdown", cu, cv, False])
+        for x in range(int(cu) + 20, int(cu) + 111, 30):
+            d.js(PEV, ["pointermove", x, cv, False])
+            time.sleep(0.2)
+        d.js(PEV, ["pointerup", cu + 110, cv, False])
+        d.js(PEV, ["pointerdown", cu + 110, cv, True])
+        for x in range(int(cu) + 90, int(cu) - 1, -30):
+            d.js(PEV, ["pointermove", x, cv, True])
+            time.sleep(0.2)
+        d.js(PEV, ["pointerup", cu - 20, cv, True])
+        time.sleep(0.8)
+        d.shot(OUT / "ui_rotate.png")
+
+        # 点皮卡线框 -> 选中（命中测试 = 8 个投影角点取凸包）
+        cu, cv = centroid(d, 0, "pickup")
+        d.js(PEV, ["pointerdown", cu, cv, False])
+        d.js(PEV, ["pointerup", cu, cv, False])
+        d.wait_js("return window.__ui().selected === window.__ui().objects[0].id;",
+                  what="select pickup")
+        time.sleep(0.6)
+        d.shot(OUT / "ui_select.png")
+
+        # 点天空 -> 明确拒绝（只有移动模式才选地面点，先切回来）
+        d.js("document.getElementById('modeMove').click(); return true;")
+        time.sleep(0.2)
+        d.js(PEV, ["pointerdown", 1000, 120, False])
+        d.js(PEV, ["pointerup", 1000, 120, False])
+        d.wait_js("return document.getElementById('info').textContent"
+                  ".includes('选点失败');", what="sky rejection")
+        time.sleep(0.4)
         d.shot(OUT / "ui_sky.png")
 
-        # 换模型（长条护栏）+ 最长边 2.2 -> scale 恢复 1.0 + 偏航 90°。
-        # 护栏横跨车道，偏航一转方向在图上非常明显，同时演示「模型 / 最长边 /
-        # 偏航」三个控件（俯仰与滚转先归零，免得三种姿态混在一起看不清）。
-        d.js(SET_SLIDER, ["pitch", 0])
-        d.js(SET_SLIDER, ["roll", 0])
-        d.js(SET_SLIDER, ["yaw", 90])
-        d.js(SET_NUMBER, ["dim", 2.2])
-        d.js(SET_MODEL, ["data/models/demo_barrier.glb"])
-        wait_info(d, "2.20", "barrier preview")
-        time.sleep(1.0)
-        d.shot(OUT / "ui_yaw.png")
-
-        # 恢复皮卡与倾斜姿态，切到右侧相机 -> 演示相机下拉（同一目标换个视角）。
-        # 用 CAM_FRONT_RIGHT 而不是 LEFT：目标在 ego [20.4,-3.2]（右前方 20 m），
-        # 左侧相机的视锥里没有它，线框会被视锥裁掉、图上什么都没有。
-        # 等的是皮卡独有的 1.34（护栏放大到 3.0 m 时中间态也会出现 3.00）。
-        d.js(SET_SLIDER, ["yaw", 0])
-        d.js(SET_SLIDER, ["pitch", 18])
-        d.js(SET_SLIDER, ["roll", -10])
-        d.js(SET_NUMBER, ["dim", 3.0])
-        d.js(SET_MODEL, ["data/models/model.glb"])
-        wait_info(d, "1.34", "model restored")
-        d.js(SET_CAM, ["CAM_FRONT_RIGHT"])
-        time.sleep(2.0)                       # 等新相机的图像解码并重绘线框
-        d.shot(OUT / "ui_cam_right.png")
-
-        # 切回 CAM_FRONT 再渲染（低采样，只为截图快）
-        d.js(SET_CAM, ["CAM_FRONT"])
-        time.sleep(2.0)
+        # 渲染两个目标（低采样，只为截图快）
         d.js("document.getElementById('samples').value=16;"
              "document.getElementById('render').click(); return true;")
         d.wait_js("const r=document.getElementById('result');"

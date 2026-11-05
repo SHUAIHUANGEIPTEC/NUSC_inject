@@ -225,7 +225,7 @@ visible_coverage 均值 0.9704
 
 ## M9 · 测试套件分布
 
-`pytest` → **155 passed**
+`pytest` → **159 passed**
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
@@ -240,7 +240,7 @@ visible_coverage 均值 0.9704
 | `test_mesh_points.py` | 9 | Y-up 转换/表面积+质心签名/细分不变性 |
 | `test_nusc_io.py` | 6 | `.pcd.bin` I/O |
 | `test_config.py` | 5 | `extends` 合并/路径解析 |
-| `test_ui_geometry.py` | 4 | 放置 UI 的反投影往返/ego 系换算/天空点拒绝 |
+| `test_ui_geometry.py` | 8 | 放置 UI 的反投影往返/ego 系换算/天空点拒绝/多目标预览一致/缩略图 job 框幅 |
 
 全部用例不依赖 nuScenes 数据与 Blender，本机耗时 ≈ 0.5 s。
 
