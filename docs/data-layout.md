@@ -133,7 +133,7 @@ nuscenes-od-p0/
 | 想省空间 | 做法 | 省下 |
 |---|---|---|
 | 只要交付物 | 删 `data/outputs/p0/*/depth/` | 每帧约 22 MB × 相机数 |
-| 只是想清掉 UI 试拍 | 删 `data/outputs/ui/*` | 每次渲染约 40 MB |
+| 只是想清掉 UI 试拍 | 删 `data/outputs/ui/*` | 每次渲染约 25 MB |
 | 导出已完成后 | 删整个 `data/outputs/p0/`——`specs.json` 与全部交付物都在 `exports/` 里 | 批量运行约 2.3 GB |
 | 只保留合格帧 | 按 `validation_report.json` 的 `all_pass` 筛 | 视失败率 |
 | 换机器/归档 | 只需 `data/exports/<name>/` + `specs.json`（原数据集除外） | — |
