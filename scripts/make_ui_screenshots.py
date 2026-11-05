@@ -175,7 +175,7 @@ def main():
         d.shot(OUT / "ui_overview.png")       # 首屏：素材面板 + 画布 + 控件
 
         # 拖皮卡缩略图到路面 -> 插入第 1 个目标（1040,600 是实测地面估计准的点）
-        d.js(DROPOnto, [".thumb[data-model='data/models/model.glb']", 1040, 600])
+        d.js(DROPOnto, [".thumb[data-model='assets/models/temple.glb']", 1040, 600])
         wait_n(d, 1, "pickup inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_insert.png")

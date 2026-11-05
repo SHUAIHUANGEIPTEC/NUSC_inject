@@ -48,7 +48,7 @@ pip install -e .
 
 # 4) （可选）Objaverse 模型下载支持
 pip install -e ".[models]"
-python scripts/download_models.py --uids <uid1> <uid2>   # -> data/models/*.glb
+python scripts/download_models.py --uids <uid1> <uid2>   # -> assets/models/*.glb
 ```
 
 ## 数据准备
@@ -56,22 +56,28 @@ python scripts/download_models.py --uids <uid1> <uid2>   # -> data/models/*.glb
 配置里的路径都是**相对仓库根目录**的，无需改动即可运行（由 `nusc_inject.config.load_config` 统一解析）：
 
 ```
+assets/
+└── models/                  # 【入库】12 个 .glb（约 38 MB）+ 逐个许可说明，克隆即有
+
 data/
 ├── nuscenes/                # 【你提供】nuScenes 根目录，建议软链到仓库外
 │   ├── v1.0-mini/           #   13 张元数据表
 │   ├── samples/             #   keyframe 相机 + LIDAR_TOP
 │   └── sweeps/  maps/
-├── models/                  # 【你提供】任意 .glb/.gltf/.obj/.fbx/.ply
+├── models/                  # 【管线生成】演示盒子 / 轴向对照模型（可随时重生成）
 ├── outputs/                 # 【管线生成】运行产物，可随时删
 └── exports/                 # 【管线生成】nuScenes 格式数据集，即交付物
 ```
 
-`data/` 全部是运行期数据、不进版本控制，克隆后并不存在。每个子目录的内容、产生者、
-体积构成与清理方式见 **[`docs/data-layout.md`](docs/data-layout.md)**。
+`assets/` 是入库的输入资产，`data/` 全部是运行期数据、不进版本控制、克隆后并不存在。
+每个子目录的内容、产生者、体积构成与清理方式见 **[`docs/data-layout.md`](docs/data-layout.md)**。
 
-把模型放到 `data/models/` 后，改 `configs/*.yaml` 中的 `model.path`（单目标）或
-`models[].path`（批量模型池）指向该文件。支持 `.glb / .gltf / .obj / .fbx / .ply`
-（glTF 的 Y-up 会按 Blender 导入规则自动换算，见「已验证事实」）。
+`assets/models/` 自带 12 个可注入模型（交通锥、水泥护栏、垃圾桶、垃圾箱、停车牌、
+路牌、电线杆、邮筒、邮箱、猫、狗，以及皮卡 `temple.glb`），许可与来源见
+**[`assets/models/README.md`](assets/models/README.md)**。要加自己的模型就丢进该目录，
+再改 `configs/*.yaml` 的 `model.path`（单目标）或 `models[].path`（批量模型池）。
+支持 `.glb / .gltf / .obj / .fbx / .ply`（glTF 的 Y-up 会按 Blender 导入规则自动换算，
+见「已验证事实」）。
 
 > 模型格式、材质处理方式、每个参数的含义与常见坑，见
 > **[`docs/model-input.md`](docs/model-input.md)** — 其中说明了相机通道原样透传模型材质、

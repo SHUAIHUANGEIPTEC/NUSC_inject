@@ -14,7 +14,7 @@ dataset:
 
 # model pool (batch picks one per object; albedo/gain from here)
 models:
-  - path: data/models/model.glb       # 任意模型；可并列多个，按 pool 随机取
+  - path: assets/models/temple.glb  # 任意模型；可并列多个，按 pool 随机取
     target_max_dim_m: [2.5, 4.0]      # uniform random range (or a scalar)
     albedo: 0.6
     intensity_gain_k: 200.0

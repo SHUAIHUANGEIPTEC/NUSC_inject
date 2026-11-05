@@ -226,11 +226,11 @@ scale 显式给出      → 用 scale（构造时会对 ≤0 / 非有限值报�
 
 ```bash
 # 1) 放模型
-cp /path/to/your_model.glb data/models/
+cp /path/to/your_model.glb assets/models/
 
 # 2) 改 configs/p0.yaml
 #    model:
-#      path: data/models/your_model.glb
+#      path: assets/models/your_model.glb
 #      category: movable_object.anomaly
 #      target_max_dim_m: 3.0
 #      albedo: 0.45

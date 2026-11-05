@@ -3,12 +3,15 @@
 `data/` 下**全部是运行期数据**，不进版本控制（`.gitignore` 已排除）。克隆仓库后该目录不存在：
 要么按 §1 自行准备输入，要么由管线生成。
 
+> **入库的输入模型在 [`assets/models/`](../assets/models/README.md)**（12 个 `.glb`，约 38 MB，
+> 含许可说明），不在 `data/` 里。`data/models/` 只剩生成物（演示盒子、轴向对照模型）。
+
 本机当前状态（供参照，数字会随运行增减）：
 
 ```
 data/                 2.8G
 ├── nuscenes          0      → 软链到仓库外部的 nuScenes 数据集
-├── models/          28K     第三方模型
+├── models/          28K     生成物：demo_*.glb / axis_*.glb（真实模型见 assets/models/）
 ├── outputs/        2.7G     运行产物（p0 出图素材 2.6G + UI 渲染与缩略图）
 └── exports/        144M     nuScenes 格式导出（交付物）
 ```
@@ -20,7 +23,7 @@ data/                 2.8G
 | 路径 | 内容 | 谁产生 | 入库 | 可删 |
 |---|---|---|---|---|
 | `nuscenes/` | nuScenes 原始数据集（`v1.0-mini/` 13 张表 + `samples/` + `sweeps/` + `maps/`） | **你提供**（官网下载，CC BY-NC-SA 4.0） | 否 | 否，删了跑不了 |
-| `models/` | 第三方 3D 模型（`.glb/.gltf/.obj/.fbx/.ply`） | **你提供**；或用 `scripts/make_demo_models.py` 生成演示模型 | 否 | 否 |
+| `models/` | **生成物**：`scripts/make_demo_models.py` 的演示盒子、`make_doc_fixtures.py` 的轴向对照模型 | 上述两个脚本 | 否 | 可，脚本重生成 |
 | `outputs/p0/<run_id>/` | 单次运行的全部中间产物与校验报告 | `run_p0.py` / `run_batch.py` | 否 | 可，重跑即得 |
 | `outputs/ui/run_<hex>/` | 放置 UI 每次「渲染」的一次运行（结构与 p0 同构） | `scripts/annotate_ui.py` | 否 | 可，再点一次渲染即得 |
 | `outputs/ui/thumbs/<模型名>/` | 放置 UI 的模型缩略图（RGBA 透明底，256²）+ 该次 Blender 的 job.json | `annotate_ui.py` 的 `/api/thumb` | 否 | 可，下次打开面板重渲（约 1–5 s/模型） |
@@ -133,6 +136,7 @@ nuscenes-od-p0/
 
 | 想省空间 | 做法 | 省下 |
 |---|---|---|
+| 清掉 UI 缩略图缓存 | 删 `data/outputs/ui/thumbs/` | 约 220 KB，下次打开面板重渲 |
 | 只要交付物 | 删 `data/outputs/p0/*/depth/` | 每帧约 22 MB × 相机数 |
 | 只是想清掉 UI 试拍 | 删 `data/outputs/ui/*` | 每次渲染约 25 MB，缩略图约 220 KB |
 | 导出已完成后 | 删整个 `data/outputs/p0/`——`specs.json` 与全部交付物都在 `exports/` 里 | 批量运行约 2.3 GB |

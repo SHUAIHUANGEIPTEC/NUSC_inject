@@ -57,8 +57,8 @@ def _one(model_path, dim, albedo, category, offset, yaw):
                          "placement_cfg": _place(offset, yaw)}]}
 
 
-def build_fixtures(models: Path) -> dict:
-    temple = models / "model.glb"
+def build_fixtures(models: Path, assets: Path) -> dict:
+    temple = assets / "temple.glb"
     return {
         # fig1 / fig2 / fig4
         "fig_temple": _one(temple, 3.0, 0.60, "movable_object.anomaly",
@@ -104,7 +104,8 @@ def write_axis_models(models: Path):
 
 
 def main():
-    models = ROOT / "data" / "models"
+    models = ROOT / "data" / "models"        # 生成物：演示盒子 / 轴向对照
+    assets = ROOT / "assets" / "models"      # 入库资产：temple.glb 等
     cfg = load_config(ROOT / "configs" / "base.yaml", ROOT)
     cfg["dataset"]["sample_index"] = SAMPLE
     meta = nusc_io.NuScenesMini(cfg["dataset"]["root"], cfg["dataset"]["version"])
@@ -112,7 +113,7 @@ def main():
     print("生成轴向对照模型：")
     write_axis_models(models)
 
-    fixtures = build_fixtures(models)
+    fixtures = build_fixtures(models, assets)
     out_root = ROOT / "data" / "outputs" / "p0"
     for name, spec in fixtures.items():
         out = out_root / name

@@ -1,0 +1,8 @@
+{
+  "uid": null,
+  "lvis_class": null,
+  "name": "temple.glb",
+  "license": "unknown",
+  "source": "CARLA-OoD3D/04-blenders/temple.glb (external project, git@github.com:shiyi-mu/CARLA-OoD3D.git)",
+  "note": "File carries no license/copyright metadata (glTF asset.generator only). CARLA-OoD3D downloads Objaverse models via LVIS class selection, so this is very likely an Objaverse asset, but the original UID and license were not recorded. Redistributed here as-is; if you need a clean license chain, replace it with a model from scripts/download_models.py."
+}

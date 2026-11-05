@@ -319,10 +319,13 @@ class Workspace:
         return out
 
     def meta_info(self) -> dict:
+        # 入库的输入资产（assets/models/）排前面，data/models/ 里是生成物
+        # （演示盒子、轴向对照模型），也一并列出便于试注入
         models = sorted(str(p.relative_to(ROOT))
-                        for p in (ROOT / "data" / "models").glob("*.glb"))
-        # put the default model first: the rest are demo / axis fixtures
-        models.sort(key=lambda p: (not p.endswith("/model.glb"), p))
+                        for p in (ROOT / "assets" / "models").glob("*.glb"))
+        models += sorted(str(p.relative_to(ROOT))
+                         for p in (ROOT / "data" / "models").glob("*.glb"))
+        models.sort(key=lambda p: (not p.endswith("temple.glb"), p))
         return {"samples": self.sample_nav(),
                 "cams": list(self.cfg["dataset"]["cam_channels"]),
                 "models": models,

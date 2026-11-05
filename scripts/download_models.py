@@ -1,11 +1,15 @@
 #!/usr/bin/env python
-"""Download a few Objaverse .glb models into data/models/.
+"""Download a few Objaverse .glb models into assets/models/.
 
 Requires: pip install objaverse  (optional dependency)
 
 Usage:
     python scripts/download_models.py --uids uid1 uid2 ...
     python scripts/download_models.py --uid-file path/to/uids.json [--n 3]
+
+Picked UIDs should be license-checked first: Objaverse's per-object metadata
+(metadata/{shard}.json.gz) carries a `license` field (by / cc0 / by-sa / by-nc /
+by-nc-sa). Only `by`-class licenses are redistributed in assets/models/.
 """
 from __future__ import annotations
 
@@ -24,7 +28,7 @@ def main():
     ap.add_argument("--uid-file", default=None,
                     help="JSON of Objaverse UIDs to sample from (omit with --uids)")
     ap.add_argument("--n", type=int, default=3)
-    ap.add_argument("--out", default=str(ROOT / "data" / "models"))
+    ap.add_argument("--out", default=str(ROOT / "assets" / "models"))
     args = ap.parse_args()
 
     try:

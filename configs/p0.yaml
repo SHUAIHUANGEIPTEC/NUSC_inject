@@ -7,9 +7,9 @@ dataset:
   sample_index: 0
 
 model:
-  # 任意 .glb / .gltf / .obj / .fbx / .ply，放到 data/models/ 后改这里即可
-  # （scripts/download_models.py 可从 Objaverse 拉取示例模型）
-  path: data/models/model.glb
+  # 任意 .glb / .gltf / .obj / .fbx / .ply，放到 assets/models/ 后改这里即可
+  # （assets/models/ 自带 12 个可注入模型；scripts/download_models.py 可再从 Objaverse 拉）
+  path: assets/models/temple.glb
   target_max_dim_m: 3.0     # longest bbox edge after scaling (auto scale)
   scale: null               # explicit uniform scale; overrides target_max_dim_m
   albedo: 0.6

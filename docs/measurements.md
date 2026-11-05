@@ -317,13 +317,13 @@ Z-up 坐标会被原样写进 Y-up 的 glTF，于是所有合规导入器（含 
 `min_z(mesh) − min_z(bbox)`。真实模型只在少数点接触自己的包围盒
 （车辆靠轮胎与保险杠），倾斜后包围盒的最低角往往落在没有几何的空处。
 
-**复现**（`data/models/model.glb`，即 `temple.glb` 皮卡，7,567 个顶点，bbox 紧致）：
+**复现**（`assets/models/temple.glb` 皮卡，7,567 个顶点，bbox 紧致）：
 
 ```python
 import math, numpy as np
 from nusc_inject import mesh_points, transforms as tf, anchor
 
-pts, normals, bmin, bsize, vsig, verts = mesh_points.sample_mesh("data/models/model.glb", 2000)
+pts, normals, bmin, bsize, vsig, verts = mesh_points.sample_mesh("assets/models/temple.glb", 2000)
 corners = np.array([bmin + np.array([sx, sy, sz]) * bsize
                     for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
 # 真实 LIDAR_TOP 安装：up 轴 = R 的第三行（实测，倾斜 1.429°）

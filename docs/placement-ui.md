@@ -92,7 +92,7 @@ python scripts/annotate_ui.py --port 9000 --open
 |---|---|---|---|
 | 移动 / 旋转 | 移动 | — | 交互模式（不是配置项） |
 | 删除目标 | — | — | 移除当前选中的目标 |
-| 素材面板 · 模型缩略图 | `data/models/*.glb` | `model.path` | 拖到画布插入 / 拖到目标上换模型 |
+| 素材面板 · 模型缩略图 | `assets/models/*.glb`（+ `data/models/` 的生成物） | `model.path` | 拖到画布插入 / 拖到目标上换模型 |
 | 素材面板 · 类目 chip | nuScenes 23 个类目 | `model.category` | 拖到画布插入 / 拖到目标上改类目 |
 | 时间帧（◀ ▶ + 下拉） | `scene-0061 · 03:28:47.648` | `dataset.sample_index` | 404 个关键帧全列；◀▶ 逐帧走 `prev`/`next`，场景边界禁用 |
 | 当前目标 | — | — | 显示选中目标的模型·类目·姿态 |
