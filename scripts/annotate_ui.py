@@ -300,14 +300,30 @@ class Workspace:
             camera_channel.run_blender(self.cfg, job, dir_)
         return png
 
+    def sample_nav(self) -> list:
+        """One entry per keyframe: index, prev/next index, and a scene · time label.
+
+        prev/next come from the nuScenes sample records, so stepping follows the
+        real keyframe chain and stops at a scene boundary (no silent jump into
+        the next scene).
+        """
+        out = []
+        for i, s in enumerate(self.meta.samples):
+            scene = self.meta.scene[s["scene_token"]]["name"]
+            t = s["timestamp"] / 1e6
+            hh, mm = int(t // 3600) % 24, int(t // 60) % 60
+            out.append({"i": i,
+                        "prev": self.meta.sample_idx_by_token.get(s["prev"]),
+                        "next": self.meta.sample_idx_by_token.get(s["next"]),
+                        "label": f"{scene} · {hh:02d}:{mm:02d}:{t % 60:06.3f}"})
+        return out
+
     def meta_info(self) -> dict:
         models = sorted(str(p.relative_to(ROOT))
                         for p in (ROOT / "data" / "models").glob("*.glb"))
         # put the default model first: the rest are demo / axis fixtures
         models.sort(key=lambda p: (not p.endswith("/model.glb"), p))
-        n = len(self.meta.samples)
-        step = max(1, n // 200)
-        return {"samples": list(range(0, n, step)),
+        return {"samples": self.sample_nav(),
                 "cams": list(self.cfg["dataset"]["cam_channels"]),
                 "models": models,
                 "categories": sorted({c["name"] for c in self.meta.categories.values()}),
@@ -366,6 +382,8 @@ PAGE = r"""<!DOCTYPE html>
  button:disabled{background:#3a3f4a;cursor:default}
  .mode{background:#1b1d22;color:#d8dae0;border:1px solid #3a3f4a}
  .mode.on{background:#2f6fb8;border-color:#2f6fb8;color:#fff}
+ .mini{padding:4px 9px;background:#1b1d22;color:#d8dae0;border:1px solid #3a3f4a}
+ .mini:disabled{opacity:.35;cursor:default}
  #hint{color:#9aa0ab;font-size:12px}
  .small{font-size:12px;color:#9aa0ab}
  #log{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:11px;background:#15171b;padding:8px;border-radius:3px;max-height:150px;overflow:auto}
@@ -396,8 +414,10 @@ PAGE = r"""<!DOCTYPE html>
     <img id="result" alt="render result">
   </div>
   <aside>
-    <label>样本 / 相机</label>
-    <div class="row"><select id="idx"></select><select id="cam"></select></div>
+    <label>时间帧 / 相机</label>
+    <div class="row"><button id="prevF" class="mini" title="上一帧">◀</button
+      ><select id="idx"></select><button id="nextF" class="mini" title="下一帧">▶</button></div>
+    <div class="row"><select id="cam"></select></div>
     <label>当前目标</label>
     <div id="selinfo" class="small">（未选中——先拖一个目标进来，或点画布上的线框）</div>
     <label>类别</label><input id="category" type="text" disabled>
@@ -556,6 +576,14 @@ async function loadFrame() {
   };
   img.src = URL.createObjectURL(blob);
 }
+function gotoSample(i) {
+  const s = meta.samples.find(x => x.i === i);
+  if (!s) return;
+  $('idx').value = String(i);
+  $('prevF').disabled = s.prev === null;     // scene boundary: no silent jump
+  $('nextF').disabled = s.next === null;
+  loadFrame();
+}
 
 // -------------------------------------------------------------- controls
 function syncControls() {
@@ -702,7 +730,15 @@ for (const id of ['yaw', 'pitch', 'roll']) {
 for (const id of ['dim', 'albedo', 'category']) {
   $(id).addEventListener('change', () => { readControls(); schedule(); });
 }
-$('idx').addEventListener('change', loadFrame);
+$('idx').addEventListener('change', () => gotoSample(+$('idx').value));
+$('prevF').addEventListener('click', () => {
+  const s = meta.samples.find(x => x.i === +$('idx').value);
+  if (s && s.prev !== null) gotoSample(s.prev);
+});
+$('nextF').addEventListener('click', () => {
+  const s = meta.samples.find(x => x.i === +$('idx').value);
+  if (s && s.next !== null) gotoSample(s.next);
+});
 $('cam').addEventListener('change', loadFrame);
 $('modeMove').addEventListener('click', () => setMode('move'));
 $('modeRotate').addEventListener('click', () => setMode('rotate'));
@@ -733,13 +769,14 @@ $('result').addEventListener('click', () => { $('result').style.display = 'none'
 (async () => {
   const m = await (await fetch('/api/meta')).json();
   meta = m;
-  $('idx').innerHTML = m.samples.map(i => `<option value="${i}">sample ${i}</option>`).join('');
+  $('idx').innerHTML = m.samples.map(s =>
+    `<option value="${s.i}">${s.label}</option>`).join('');
   $('cam').innerHTML = m.cams.map(c => `<option>${c}</option>`).join('');
   $('category').value = m.default_category;
   buildPalette(m);
   setMode('move');
   window.__ui = () => ({objects, selected, mode, state});   // automation hook
-  loadFrame();
+  gotoSample(m.samples[0].i);
 })();
 </script>
 </body>
