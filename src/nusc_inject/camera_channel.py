@@ -30,7 +30,7 @@ def all_bbox_corners_global(gts) -> np.ndarray:
     return np.vstack([_bbox_corners_global(gt) for gt in gts])
 
 
-def _cam_T(sd, meta):
+def global2cam(sd, meta):
     """T_global2camera for one camera sample_data record (ood_to_camera.py chain)."""
     cc = meta.calib[sd["calibrated_sensor_token"]]
     pose_c = meta.poses[sd["ego_pose_token"]]
@@ -56,7 +56,7 @@ def build_job(cfg, meta, gts, out_dir: Path) -> dict:
 
     for channel in cfg["dataset"]["cam_channels"]:
         sd = meta.sd_for_sample(gts[0]["sample_token"], channel)
-        T_g2c = _cam_T(sd, meta)
+        T_g2c = global2cam(sd, meta)
         T_cam2global = np.linalg.inv(T_g2c)
         cc = meta.calib[sd["calibrated_sensor_token"]]
         K = np.array(cc["camera_intrinsic"], dtype=float)

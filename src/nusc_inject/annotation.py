@@ -275,6 +275,16 @@ def export_dataset(cfg, specs, export_root) -> dict:
         if src.exists():
             (export_root / d).symlink_to(src.resolve(), target_is_directory=True)
 
+    # Provenance travels with the dataset. export_root is rebuilt from scratch
+    # on every export, so the manifest describing WHAT was injected has to live
+    # inside it — otherwise a re-export silently destroys the only record of
+    # the injected objects (positions, sizes, categories, track keys).
+    _dump_json(export_root / "specs.json", {
+        "run_id": cfg.get("run_id"),
+        "n_samples": len(specs),
+        "specs": specs,
+    })
+
     return {
         "export_root": str(export_root),
         "version": version,

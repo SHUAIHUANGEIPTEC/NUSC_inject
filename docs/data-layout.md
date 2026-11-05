@@ -6,11 +6,11 @@
 本机当前状态（供参照，数字会随运行增减）：
 
 ```
-data/                 334M
+data/                 2.7G
 ├── nuscenes          0      → 软链到仓库外部的 nuScenes 数据集
-├── models/          20K     第三方模型
-├── outputs/        216M     运行产物（8 个目录）
-└── exports/        119M     nuScenes 格式导出
+├── models/          28K     第三方模型
+├── outputs/        2.5G     运行产物（9 个目录，其中批量运行占 2.3G）
+└── exports/        144M     nuScenes 格式导出
 ```
 
 ---
@@ -104,22 +104,26 @@ data/outputs/p0/<run_id>/
 ```
 nuscenes-od-p0/
 ├── v1.0-mini/          35M   13 张表 = 原表 + 追加的 category/attribute/instance/sample_annotation
-├── samples/            84M   4723 个软链（原文件）+ 125 个实拷（被注入的文件）
+├── samples/           110M   4670 个软链（原文件）+ 178 个实拷（被注入的文件）
 ├── sweeps/            软链    未改动，指向原数据集
 ├── maps/              软链    同上
-├── export_report.json  8K    导出统计 + devkit 校验结果
-└── specs.json          92K   逐帧逐目标的来源清单（位姿/尺寸/类目/模型路径/轨道 key）
+├── export_report.json  9K    导出统计 + devkit 校验结果
+└── specs.json         120K   逐帧逐目标的来源清单（位姿/尺寸/类目/模型路径/轨道 key）
 ```
 
 **软链策略**：`samples/` 里绝大部分是指回原数据集的软链，只有**被注入替换过的**文件
-（点云 + 合成图，共 125 个）是真实拷贝。所以导出目录只有 84M 却能独立被 devkit 加载——
+（点云 + 合成图，共 178 个）是真实拷贝。所以导出目录不大却能独立被 devkit 加载——
 前提是**原数据集不能删**，软链依赖它。
 
 > ⚠️ `export_dataset` 开头会 `rmtree(export_root)` 重建整个导出目录。测试导出请用
 > 独立的 `export_dir`，否则会摧毁成品。
 
-**`specs.json` 是数据集的来源凭证**：它能重建导出（`--export-only`），也是"这 66 个目标
-分别是什么、放在哪"的唯一记录。建议随数据集一起保留。
+**`specs.json` 是数据集的来源凭证**：它能重建导出（`--export-only`），也是"这批目标分别是
+什么、放在哪"的唯一记录。
+
+它由 `export_dataset` **自动写入导出根目录**——因为导出目录每次都会 `rmtree` 重建，
+清单若只存在运行目录里，一次重导出就会把唯一的来源记录抹掉（确实发生过）。所以不要再手工
+拷，也别把它当成"运行目录的东西"随手删。
 
 ---
 
@@ -128,6 +132,7 @@ nuscenes-od-p0/
 | 想省空间 | 做法 | 省下 |
 |---|---|---|
 | 只要交付物 | 删 `data/outputs/p0/*/depth/` | 每帧约 22 MB × 相机数 |
+| 导出已完成 | 删 `data/outputs/p0/final_export/`（`specs.json` 已在导出目录里） | 约 2.3 GB |
 | 只保留合格帧 | 按 `validation_report.json` 的 `all_pass` 筛 | 视失败率 |
 | 重导出前腾空间 | 保留 `specs.json`，删其余 | 大幅 |
 | 换机器/归档 | 只需 `data/exports/<name>/` + `specs.json`（原数据集除外） | — |
