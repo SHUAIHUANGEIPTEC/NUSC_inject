@@ -71,30 +71,38 @@ def _normalize_T(raw_bbox_min: np.ndarray) -> np.ndarray:
     return T
 
 
-def _ground_drop(R_lidar, raw_min, raw_size, scale) -> float:
-    """How far the lowest rotated bbox vertex sits below the placement anchor.
+def _ground_drop(R_lidar, raw_min, support, scale) -> float:
+    """How far the lowest rotated mesh vertex sits below the placement anchor.
 
     The placement anchor is the model's bbox-min corner. After a yaw-only
-    rotation that corner is still the lowest point, so this returns 0. Once
-    pitch/roll are involved the lowest vertex moves, and the anchor has to be
+    rotation the lowest mesh vertex is still on the bottom face, so this is
+    small; once pitch/roll are involved it moves and the anchor has to be
     raised (or lowered) by this amount for the object to rest on the ground
     rather than sink into it.
+
+    ``support`` is (N,3) mesh vertices in the model frame. The bbox corners are
+    NOT a substitute: a mesh only touches its bounding box at a few points (a
+    car touches it at the tyres and the bumpers), so the rotated bbox's lowest
+    corner is usually empty space. Dropping the *box* onto the ground then
+    leaves the *mesh* floating above it — measured at 1.6 cm for a yaw-only
+    placement and 20.7 cm at 28 deg pitch on the pickup (`temple.glb`).
     """
     raw_min = np.asarray(raw_min, dtype=float)
-    raw_size = np.asarray(raw_size, dtype=float)
-    corners = np.array([raw_min + np.array([sx, sy, sz]) * raw_size
-                        for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
-    local = (corners - raw_min) * float(scale)      # bbox-min at origin, scaled
+    support = np.asarray(support, dtype=float)
+    local = (support - raw_min) * float(scale)   # bbox-min at origin, scaled
     return float((np.asarray(R_lidar, dtype=float) @ local.T)[2, :].min())
 
 
 def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
-             placement_cfg=None, raw_bbox=None) -> dict:
+             placement_cfg=None, raw_bbox=None, model_verts=None) -> dict:
     """Compose the placement transform and return the gt dict.
 
     sample: nuScenes sample dict (default: cfg dataset.sample_index).
     model_cfg / placement_cfg: per-object overrides (default: cfg["model"] / cfg["placement"]).
     raw_bbox: (bbox_min, bbox_size) in the Blender model frame (required).
+    model_verts: (N,3) mesh vertices in the same frame (required) — the ground
+        contact support. Pass the mesh vertices, not the bbox corners, or a
+        tilted non-box object will float; see _ground_drop.
     lidar_pts: (N,5) original scene cloud in the LIDAR_TOP frame (for ground z).
     """
     ds = cfg["dataset"]
@@ -104,6 +112,8 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
     placement_cfg = placement_cfg or cfg["placement"]
     if raw_bbox is None:
         raise ValueError("raw_bbox=(bbox_min, bbox_size) is required")
+    if model_verts is None:
+        raise ValueError("model_verts=(N,3) mesh vertices are required")
     raw_min = np.asarray(raw_bbox[0], dtype=float)
     raw_size = np.asarray(raw_bbox[1], dtype=float)
 
@@ -169,11 +179,13 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
         S[0, 0] = S[1, 1] = S[2, 2] = scale
 
         T_norm = _normalize_T(raw_min)  # bbox-min -> origin
-        # Rest the LOWEST rotated vertex on the ground, not the bbox-min corner:
-        # with pitch/roll the two differ, and anchoring on the bbox-min would
-        # bury part of the object below ground. For a yaw-only placement
-        # z_drop is exactly 0, so this changes no existing behaviour.
-        z_drop = _ground_drop(R_lidar, raw_min, raw_size, scale)
+        # Rest the LOWEST rotated MESH VERTEX on the ground, not the bbox-min
+        # corner and not the bbox's lowest corner: with pitch/roll those three
+        # differ, and anchoring on either box corner leaves the mesh floating
+        # (or buried). z_drop is ~0 for a yaw-only placement on a pure-yaw
+        # mount; the real LIDAR_TOP mount is tilted ~1.4 deg, so it is not
+        # exactly 0 there either.
+        z_drop = _ground_drop(R_lidar, raw_min, model_verts, scale)
         T_pose = tf.make_T(tf.rot_to_quat(R_lidar), [x, y, ground_z - z_drop])
 
         T_model2lidar = T_pose @ S @ T_norm

@@ -20,14 +20,15 @@ log = logging.getLogger("pipeline")
 
 
 def _sample_objects(objects, cfg, cache):
-    """Per unique model: surface-sample once and cache (pts, normals, bbox, vsig)."""
+    """Per unique model: surface-sample once and cache (pts, normals, bbox, vsig, verts)."""
     for o in objects:
         path = o["model_cfg"]["path"]
         if path not in cache:
-            pts, normals, bmin, bsize, vsig = mesh_points.sample_mesh(
+            pts, normals, bmin, bsize, vsig, verts = mesh_points.sample_mesh(
                 path, int(cfg["mesh_points"]["n_dense"]))
             cache[path] = {"pts": pts, "normals": normals,
-                           "bbox_min": bmin, "bbox_size": bsize, "vsig": vsig}
+                           "bbox_min": bmin, "bbox_size": bsize, "vsig": vsig,
+                           "verts": verts}
             log.info("sampled %s: raw bbox size=%s", Path(path).name,
                      np.round(bsize, 2))
     return cache
@@ -70,7 +71,8 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
         gt = anchor.build_gt(cfg, meta, scene_pts, sample=sample,
                              model_cfg=o["model_cfg"],
                              placement_cfg=o["placement_cfg"],
-                             raw_bbox=(m["bbox_min"], m["bbox_size"]))
+                             raw_bbox=(m["bbox_min"], m["bbox_size"]),
+                             model_verts=m["verts"])
         gts.append(gt)
     for i, gt in enumerate(gts):
         log.info("obj%d: pos=%s size=%s scale=%.5f ground_z=%.3f", i,

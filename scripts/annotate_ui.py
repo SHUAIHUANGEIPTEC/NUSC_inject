@@ -87,10 +87,11 @@ class Workspace:
 
     def mesh(self, path: str):
         if path not in self._meshes:
-            pts, normals, bmin, bsize, _ = mesh_points.sample_mesh(
+            pts, normals, bmin, bsize, _, verts = mesh_points.sample_mesh(
                 path, int(self.cfg["mesh_points"]["n_dense"]))
             self._meshes[path] = {"pts": pts, "normals": normals,
-                                  "bbox_min": bmin, "bbox_size": bsize}
+                                  "bbox_min": bmin, "bbox_size": bsize,
+                                  "verts": verts}
         return self._meshes[path]
 
     # ------------------------------------------------------------ placement
@@ -152,7 +153,8 @@ class Workspace:
         cfg = {**self.cfg, "dataset": {**self.cfg["dataset"], "sample_index": idx}}
         gt = anchor.build_gt(cfg, self.meta, sc["pts"], sample=sc["sample"],
                              model_cfg=model_cfg, placement_cfg=placement_cfg,
-                             raw_bbox=(mesh["bbox_min"], mesh["bbox_size"]))
+                             raw_bbox=(mesh["bbox_min"], mesh["bbox_size"]),
+                             model_verts=mesh["verts"])
 
         c = sc["cams"][cam]
         T = np.array(gt["T_model2global"], dtype=float).reshape(4, 4)
@@ -202,7 +204,10 @@ class Workspace:
         return out
 
     def meta_info(self) -> dict:
-        models = sorted(str(p.relative_to(ROOT)) for p in (ROOT / "data" / "models").glob("*.glb"))
+        models = sorted(str(p.relative_to(ROOT))
+                        for p in (ROOT / "data" / "models").glob("*.glb"))
+        # put the default model first: the rest are demo / axis fixtures
+        models.sort(key=lambda p: (not p.endswith("/model.glb"), p))
         n = len(self.meta.samples)
         step = max(1, n // 200)
         return {"samples": list(range(0, n, step)),
@@ -246,10 +251,10 @@ PAGE = r"""<!DOCTYPE html>
 <style>
  body{font:13px/1.5 system-ui,sans-serif;margin:0;background:#1b1d22;color:#d8dae0}
  header{padding:8px 14px;background:#24272e;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
- main{display:flex;gap:14px;padding:14px;align-items:flex-start;flex-wrap:wrap}
- #stage{position:relative;background:#000;border-radius:4px;overflow:hidden;max-width:100%}
- canvas{display:block;max-width:100%;height:auto;cursor:crosshair}
- aside{min-width:270px;background:#24272e;border-radius:4px;padding:12px}
+ main{display:flex;gap:14px;padding:14px;align-items:flex-start}
+ #stage{flex:1 1 auto;min-width:0;position:relative;background:#000;border-radius:4px;overflow:hidden}
+ canvas{display:block;width:100%;height:auto;cursor:crosshair}
+ aside{flex:0 0 300px;background:#24272e;border-radius:4px;padding:12px}
  label{display:block;margin:9px 0 2px;color:#9aa0ab;font-size:11px;text-transform:uppercase;letter-spacing:.04em}
  select,input[type=number]{width:100%;background:#1b1d22;color:#d8dae0;border:1px solid #3a3f4a;border-radius:3px;padding:4px}
  input[type=range]{width:100%}
@@ -258,7 +263,8 @@ PAGE = r"""<!DOCTYPE html>
  button:disabled{background:#3a3f4a;cursor:default}
  #hint{color:#9aa0ab;font-size:12px}
  #log{white-space:pre-wrap;font-family:ui-monospace,monospace;font-size:11px;background:#15171b;padding:8px;border-radius:3px;max-height:150px;overflow:auto}
- img#result{max-width:100%;border-radius:3px;margin-top:8px}
+ #result{position:absolute;left:0;top:0;width:100%;height:100%;object-fit:contain;
+         display:none;background:#000;cursor:zoom-out}
 </style></head><body>
 <header>
   <strong>nusc-inject · 放置工具</strong>
@@ -267,6 +273,7 @@ PAGE = r"""<!DOCTYPE html>
 <main>
   <div id="stage">
     <canvas id="cv"></canvas>
+    <img id="result" alt="render result">
   </div>
   <aside>
     <label>样本 / 相机</label>
@@ -283,7 +290,6 @@ PAGE = r"""<!DOCTYPE html>
     <p><button id="render">渲染（Blender）</button></p>
     <div id="info" style="font-size:12px;color:#9aa0ab"></div>
     <div id="log"></div>
-    <img id="result" style="display:none">
   </aside>
 </main>
 <script>
@@ -310,7 +316,7 @@ function body(extra) {
     sample_index: +$('idx').value, cam: $('cam').value, model_path: $('model').value,
     category: $('category').value || null, target_max_dim_m: +$('dim').value,
     albedo: +$('albedo').value, yaw: +$('yaw').value, pitch: +$('pitch').value,
-    roll: +$('roll').value, offset_ego: meta.offset
+    roll: +$('roll').value, offset_ego: meta.offset_ego
   }, extra || {});
 }
 
@@ -321,7 +327,7 @@ async function preview() {
   const g = state.gt;
   $('info').textContent =
     `size(w,l,h)=[${g.size.map(v=>v.toFixed(2)).join(', ')}]  scale=${g.scale.toFixed(4)}\n`
-    + `ego=[${meta.offset.map(v=>v.toFixed(1)).join(', ')}]  ground_z=${g.ground_z_lidar.toFixed(2)}`;
+    + `ego=[${meta.offset_ego.map(v=>v.toFixed(1)).join(', ')}]  ground_z=${g.ground_z_lidar.toFixed(2)}`;
   draw();
 }
 
@@ -330,7 +336,7 @@ async function loadFrame() {
   const blob = await r.blob();
   img.onload = () => {
     $('cv').width = img.naturalWidth; $('cv').height = img.naturalHeight;
-    if (meta && meta.offset) preview(); else draw();
+    if (meta && meta.offset_ego) preview(); else draw();
   };
   img.src = URL.createObjectURL(blob);
 }
@@ -373,6 +379,8 @@ $('render').addEventListener('click', async () => {
     }
   }, 1000);
 });
+
+$('result').addEventListener('click', () => { $('result').style.display = 'none'; });
 
 (async () => {
   const m = await (await fetch('/api/meta')).json();

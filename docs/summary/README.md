@@ -58,11 +58,11 @@
 | 校验项 | 实测 | 阈值 | 结果 |
 |---|---|---|---|
 | 坐标链往返残差 | 1.5e-13 | <1e-6 | ✅ |
-| `num_lidar_pts` | 4353 | >0 | ✅ |
+| `num_lidar_pts` | 4333 | >0 | ✅ |
 | Blender 内参自检 | 0.006 px | <2 px | ✅ |
 | 点投影 ⊂ α 覆盖率 | 0.996 | ≥0.85 | ✅ |
-| 3D 框投影 IoU | 0.860 | ≥0.5（触边豁免） | ✅ |
-| 被遮挡像素 / 无理由遮挡 | 305（0.9%）/ **0** | 0 违例 | ✅ |
+| 3D 框投影 IoU | 0.858 | ≥0.5（触边豁免） | ✅ |
+| 被遮挡像素 / 无理由遮挡 | 406（1.2%）/ **0** | 0 违例 | ✅ |
 
 ### 3.2 同帧多目标（run-id `fig_two_final`）
 
@@ -75,9 +75,9 @@
 | 校验项 | CAM_FRONT | CAM_FRONT_LEFT |
 |---|---|---|
 | 点投影 ⊂ α 覆盖率 | 0.998 | 1.000 |
-| 3D 框投影 IoU | 0.958 | 0.700（触边豁免） |
-| 被遮挡像素 / 无理由遮挡 | 2205 / **0** | 0 / **0** |
-| `num_lidar_pts` | 3679 | 5977 |
+| 3D 框投影 IoU | 0.960 | 0.700（触边豁免） |
+| 被遮挡像素 / 无理由遮挡 | 2274 / **0** | 0 / **0** |
+| `num_lidar_pts` | 3670 | 5977 |
 
 批量放置可复现：`np.random.default_rng([seed, sample_index])`。
 
@@ -93,9 +93,9 @@
 
 **图 5**：同一帧上分别注入 4 个目标。A 与 D 用同一模型、只改距离（8 m / 15 m），
 隔离出距离的影响；B 与 D 同位置同朝向、只换模型与类目，隔离出目标本身的影响；
-C 的 6 m 卡车被前方真实车辆挡住 **77.3%** 的目标像素（放大框里只剩贴着真实卡车的窄条）。
+C 的 6 m 卡车被前方真实车辆挡住 **77.5%** 的目标像素（放大框里只剩贴着真实卡车的窄条）。
 
-点云均强严格跟随 `albedo`：A/D (0.70) → 139，B (0.50) → 98，C (0.25) → 49。
+点云强度严格跟随 `albedo`：A/D (0.70) → 137 / 139，B (0.50) → 96，C (0.25) → 49。
 完整数据与结论见 [`docs/measurements.md`](../measurements.md) 的 M10。
 
 ---
@@ -121,7 +121,7 @@ export_report.json
 | 新增 annotation | **83** 条（总 18621 = 18538 + 83） |
 | 新 category / attribute | `movable_object.anomaly` / `vehicle.moving` |
 | 校验通过 | 82/82 帧（`end_reasons` 中无 `validation_failed`） |
-| 遮挡成效 | 6.12% 目标像素被场景正确隐藏，0 违例无理由遮挡 |
+| 遮挡成效 | 6.38% 目标像素被场景正确隐藏，0 违例无理由遮挡 |
 | devkit 校验 | `verify.ok = true`，0 problems |
 
 > 本节数字对应 `sample_annotation.size` 轴序修复、原始回波 gap-fill、遮挡体逐像素
@@ -203,6 +203,12 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
 - ✅ **规格保护**：退化 `scale` 输入、`from_global` 的 scale 回收、尺寸合理性阈值、
   `.obj/.fbx` 轴转换、漂移守卫改为形状敏感（bbox + 表面积 + 面积质心）
 - ✅ 当前导出：82 帧 / 17 轨迹 / 83 标注，82/82 帧校验通过，devkit `verify.ok`
+
+**工具**
+- ✅ 交互式放置 UI（`scripts/annotate_ui.py`）：点选路面 → 线框预览 → 拖偏航/俯仰/滚转 →
+  后台渲染真管线。零新增依赖，预览与渲染共用 `anchor.build_gt`。
+  使用明细与界面截图见 [`docs/placement-ui.md`](../placement-ui.md)。
+- ✅ 文档配图与出图素材可复现：`make_doc_figs.py` / `make_doc_fixtures.py` / `make_ui_screenshots.py`
 
 **后续（超出当前范围）**
 - 批量到 150 scene / 训练数据集生产

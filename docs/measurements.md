@@ -185,32 +185,34 @@ w/l 比        0.4470                      2.2371     (= 1/0.4470)
 
 **结论**：同一轴序 bug 让真实车辆的遮挡体在地面转了 90°，脚印盖错位置，
 遮挡功能是彻底的**空操作**——旧导出里「被车挡住的目标」被错误注入成了可见目标。
-（此后又经 M5 的逐像素深度修正，当前遮挡占比 6.85%，见下节。）
+（此后又经 M5 的逐像素深度修正，当前遮挡占比 6.38%，见下节。）
 
 ---
 
 ## M8 · 当前全量验收指标
 
-`python scripts/run_batch.py --config configs/batch.yaml --run-id doc_numbers --skip-export`
+`python scripts/run_batch.py --config configs/batch.yaml --run-id final_export`
+（含导出；本节数字即取自该次运行，见 `data/exports/nuscenes-od-p0/export_report.json`）
 
 **原始输出**
 
 ```
 帧数                     82  失败 0
 校验报告全过             82/82
-坐标链往返残差 max       4.547e-13
-Blender 内参自检 max     0.348 px
+坐标链往返残差 max       3.422e-13
+Blender 内参自检 max     0.358 px
 size_plausible 通过       82/82
 对象最长边范围            2.706 ~ 3.877 m
-num_lidar_pts 范围        7 ~ 12000  (总 289010)
-点投影⊂α 覆盖率  均值 0.9926  最小 0.9672  可测样本 95
-box IoU        均值 0.8112  最小 0.2018
+num_lidar_pts 范围        3 ~ 12000  (总 288158)
+点投影⊂α 覆盖率  均值 0.9926  最小 0.9744  可测样本 95
+box IoU        均值 0.8126  最小 0.2026
 visible_coverage 均值 0.9704
-被遮挡像素合计   247374   无理由遮挡合计 0
-遮挡占比         247374/4039506 = 0.0612
+被遮挡像素合计   255771   无理由遮挡合计 0
+遮挡占比         255771/4007016 = 0.0638
 
 批量 summary: frames_annotated=82  n_tracks_planned=20  n_tracks_realized=17
               end_reasons={invisible: 7, no_camera: 4, window_end: 9}
+导出: 82 帧 / 17 轨迹 / 83 标注  verify.ok=True  n_total_annotations=18621
 ```
 
 补充核对：`IoU < 0.5` 的 4 例全部为触边豁免。
@@ -223,21 +225,22 @@ visible_coverage 均值 0.9704
 
 ## M9 · 测试套件分布
 
-`pytest` → **134 passed**
+`pytest` → **155 passed**
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
-| `test_anchor.py` | 21 | 缩放/ego↔lidar 换算/gt 变换对/`from_global` scale 回收/退化保护 |
+| `test_anchor.py` | 28 | 缩放/ego↔lidar 换算/gt 变换对/`from_global` scale 回收/网格顶点贴地/退化保护 |
 | `test_lidar_channel.py` | 19 | 双向遮挡语义/遮挡体/gap-fill/强度/注入 |
+| `test_annotation.py` | 18 | 确定性 token/导出表/跨帧 prev-next 链/来源清单 |
+| `test_transforms.py` | 16 | 四元数往返/欧拉角方向与合成/坐标链/view_points |
 | `test_occluders.py` | 15 | `[w,l,h]` 轴序/盒面点/逐像素面深度/gap-fill 半径 |
-| `test_annotation.py` | 14 | 确定性 token/导出表/跨帧 prev-next 链 |
 | `test_composite.py` | 12 | z-buffer/可见性规则/深度洞/深度比例 margin |
 | `test_validate.py` | 12 | 遮挡理由一致性/尺寸阈值/不可测覆盖率豁免 |
 | `test_range_image.py` | 11 | 球面分箱/`dilate_min_map` |
-| `test_transforms.py` | 10 | 四元数往返/坐标链/view_points |
 | `test_mesh_points.py` | 9 | Y-up 转换/表面积+质心签名/细分不变性 |
 | `test_nusc_io.py` | 6 | `.pcd.bin` I/O |
 | `test_config.py` | 5 | `extends` 合并/路径解析 |
+| `test_ui_geometry.py` | 4 | 放置 UI 的反投影往返/ego 系换算/天空点拒绝 |
 
 全部用例不依赖 nuScenes 数据与 Blender，本机耗时 ≈ 0.5 s。
 
@@ -272,7 +275,7 @@ D 行人·中距·左偏·75°    human.pedestrian.adult    0.70  [0.55,0.45,1.7
 ![四组效果对比](summary/figs/fig5_case_comparison.jpg)
 
 *每个用例的黄框已放大。A 近距行人（站立、轮廓大）；B 中距护栏（长条形、偏转 75°）；C 远距卡车——
-被前方真实车辆挡住 77.3%，只剩贴着真实卡车的窄条；D 与 B 同位置同朝向、只换模型，
+被前方真实车辆挡住 77.5%，只剩贴着真实卡车的窄条；D 与 B 同位置同朝向、只换模型，
 用来隔离目标本身的影响。*
 
 **四组结论**
@@ -286,7 +289,7 @@ D 行人·中距·左偏·75°    human.pedestrian.adult    0.70  [0.55,0.45,1.7
    4423 → 1016（−77%）、轮廓 35751 → 8526 px（−76%）。
 4. **B 与 D 隔离出「目标本身」的影响**：同位置同朝向，护栏（2.2×0.4×1.0）比行人
    （0.55×0.45×1.75）点数多 2.6 倍、轮廓大 2.4 倍，因为迎面截面积更大。
-5. **遮挡按真实几何生效**：C 的 6 m 卡车在 28 m 处被前方真实车辆挡住 **77.3%** 的目标像素，
+5. **遮挡按真实几何生效**：C 的 6 m 卡车在 28 m 处被前方真实车辆挡住 **77.5%** 的目标像素，
    而 A/B/D 几乎未被遮挡（0–2.7%）。四组覆盖率均 ≥0.996、IoU ≥0.978。
 6. **同类目/同模型的两组（A、D）强度完全相同（139/140）**，说明强度与距离无关
    ——这是 Lambertian 模型的固有属性，见下条。
@@ -302,3 +305,69 @@ Z-up 坐标会被原样写进 Y-up 的 glTF，于是所有合规导入器（含 
 模型变成「躺倒」。`make_demo_models.py` 现在显式做 `(x,y,z)→(x,z,-y)` 后再导出；
 同时约定 **x=长、y=宽、z=高** 以匹配 nuScenes 的 `[w,l,h]` 语义，
 否则长轴落在 y 上会让标注读成「很短很宽」的目标。
+
+---
+
+## M11 · 贴地锚点必须用网格顶点，不能用包围盒角点
+
+**目的**：倾斜目标贴地时，「最低点」该按包围盒的 8 个角点算，还是按网格顶点算。
+
+**为什么两者不同**：网格 ⊆ 包围盒，旋转后 `min_z(mesh) ≥ min_z(bbox)` 恒成立。
+按包围盒最低角落地，等于把**盒子**放到地面上，而**网格**会悬空
+`min_z(mesh) − min_z(bbox)`。真实模型只在少数点接触自己的包围盒
+（车辆靠轮胎与保险杠），倾斜后包围盒的最低角往往落在没有几何的空处。
+
+**复现**（`data/models/model.glb`，即 `temple.glb` 皮卡，7,567 个顶点，bbox 紧致）：
+
+```python
+import math, numpy as np
+from nusc_inject import mesh_points, transforms as tf, anchor
+
+pts, normals, bmin, bsize, vsig, verts = mesh_points.sample_mesh("data/models/model.glb", 2000)
+corners = np.array([bmin + np.array([sx, sy, sz]) * bsize
+                    for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
+# 真实 LIDAR_TOP 安装：up 轴 = R 的第三行（实测，倾斜 1.429°）
+z = np.array([0.01807, -0.017186, 0.999689]); z /= np.linalg.norm(z)
+x = np.array([1.0, 0.0, 0.0]); x -= z * (x @ z); x /= np.linalg.norm(x)
+R_mount = np.stack([x, np.cross(z, x), z])
+for pitch, roll in ((0.0, 0.0), (28.0, -12.0)):
+    R = R_mount @ tf.euler_to_rot(0.0, math.radians(pitch), math.radians(roll))
+    a = anchor._ground_drop(R, bmin, corners, 1.0)   # 角点贴地（修前）
+    b = anchor._ground_drop(R, bmin, verts,   1.0)   # 顶点贴地（修后）
+    print(f"pitch={pitch:5.1f} roll={roll:5.1f}  corners={a:10.4f}  verts={b:10.4f}  gap={b-a:8.4f}")
+```
+
+**原始输出**（模型框单位；`scale = 3.0 / 463.662 = 0.00647`，目标最长边 3.0 m）
+
+```
+raw_min [-103.629 -249.029 0.475]   raw_size [207.258 463.662 172.611]   n_verts 7567
+bbox 紧致: min(verts)==raw_min  True   max(verts)==raw_min+raw_size  True
+R 第三行 [0.01807 -0.017186 0.999689]   倾斜 1.429°
+
+pitch=  0.0 roll=  0.0  corners=   -7.9685  verts=   -5.5272  gap=  2.4413
+pitch= 28.0 roll=-12.0  corners= -187.6671  verts= -155.7158  gap= 31.9513
+
+换算成米（×0.00647）：yaw-only 悬浮 1.58 cm；pitch 28°/roll −12° 悬浮 20.7 cm
+```
+
+**修前 / 修后 P0 直接对照**
+
+```
+run-id      anchor_lidar_z   CAM_FRONT visible / alpha / occluded   all_pass
+pre_fix        -1.592853            34082 / 34387 / 305             True
+post_fix       -1.608649            34032 / 34438 / 406             True
+Δ              -0.015796 m（−1.58 cm，与上表的 1.58 cm 吻合）
+```
+
+**结论**
+
+1. 贴地必须按**网格最低顶点**，`anchor._ground_drop` 因此改为接收 `model_verts`；
+   `build_gt` 把 `model_verts` 列为必填，避免「忘了传就静默退回角点」。
+2. 真实安装的 1.4° 倾斜意味着**连 yaw-only 都不是逐位不变**：每个目标下沉 1.58 cm，
+   P0 的 `visible/alpha/occluded` 从 34082/34387/305 变到 34032/34438/406。
+   这是正确性修正的必然代价，不是回归（同 M6 的取舍逻辑）。
+3. **单盒模型不受影响**：`demo_pedestrian/barrier/truck.glb` 是 trimesh 造的单盒，
+   顶点集与包围盒角点重合，所以 M10 的四组数字一格未变；
+   出问题的只有真实非盒状模型（`model.glb`）。
+4. 该 bug 只在**倾斜**时肉眼明显；yaw-only 下 1.58 cm 在 15 m 处约 1–2 px，
+   靠像素计数才能看出来——这正是「必须用数值而不是靠看图验收」的例子。

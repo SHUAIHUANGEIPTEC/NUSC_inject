@@ -10,6 +10,7 @@
 
 > 📄 **图文工作总结**（含管线流程图、验收数据、踩坑记录）：[docs/summary/README.md](docs/summary/README.md)
 > ｜ 模型输入格式与参数：[docs/model-input.md](docs/model-input.md)
+> ｜ 交互式放置 UI：[docs/placement-ui.md](docs/placement-ui.md)
 > ｜ `data/` 目录结构与清理：[docs/data-layout.md](docs/data-layout.md)
 > ｜ 实测数据存档：[docs/measurements.md](docs/measurements.md)
 
@@ -121,27 +122,30 @@ python scripts/annotate_ui.py --open    # -> http://127.0.0.1:8765
   不存在「预览和结果不一致」。
 - 渲染结果落在 `data/outputs/ui/run_*/`，与命令行产物结构相同。
 
+完整使用明细（界面分区、控件与配置字段对照、输出结构、已知限制、截图重建）
+见 **[`docs/placement-ui.md`](docs/placement-ui.md)**。
+
 ## 测试
 
 ```bash
 pip install -e ".[dev]"    # 或直接用 conda 环境里已装好的 pytest
-pytest                     # 153 passed，≈0.5s，不需要 nuScenes 数据与 Blender
+pytest                     # 155 passed，≈0.5s，不需要 nuScenes 数据与 Blender
 ```
 
 | 文件 | 用例 | 覆盖 |
 |---|---|---|
-| `test_anchor.py` | 21 | 缩放 / ego↔lidar 换算 / gt 变换对 / `from_global` scale 回收 / 退化保护 |
+| `test_anchor.py` | 28 | 缩放 / ego↔lidar 换算 / gt 变换对 / `from_global` scale 回收 / 网格顶点贴地 / 退化保护 |
 | `test_lidar_channel.py` | 19 | 双向遮挡语义 / 遮挡体 / gap-fill / 强度 / 注入 |
+| `test_annotation.py` | 18 | 确定性 token / 导出表 / 跨帧 prev-next 链 / 来源清单 |
+| `test_transforms.py` | 16 | 四元数往返 / 欧拉角方向与合成 / 坐标链 / `view_points` |
 | `test_occluders.py` | 15 | `[w,l,h]` 轴序 / 盒面点 / 逐像素面深度 / gap-fill 半径 |
-| `test_annotation.py` | 14 | 确定性 token / 导出表 / 跨帧 prev-next 链 |
 | `test_composite.py` | 12 | z-buffer / 可见性规则 / 深度洞 / 深度比例 margin |
 | `test_validate.py` | 12 | 遮挡理由一致性 / 尺寸阈值 / 不可测覆盖率豁免 |
 | `test_range_image.py` | 11 | 球面分箱 / `dilate_min_map` |
-| `test_transforms.py` | 10 | 四元数往返 / 坐标链 / `view_points` |
 | `test_mesh_points.py` | 9 | Y-up 转换 / 表面积+质心签名 / 细分不变性 |
 | `test_nusc_io.py` | 6 | `.pcd.bin` I/O |
-| `test_ui_geometry.py` | 4 | 放置 UI 的反投影往返 / ego 系换算 / 天空点拒绝 |
 | `test_config.py` | 5 | `extends` 合并 / 路径解析 |
+| `test_ui_geometry.py` | 4 | 放置 UI 的反投影往返 / ego 系换算 / 天空点拒绝 |
 
 需要真实数据的端到端校验由运行时 Step-6 输出的 `validation_report.json` 给出。
 各次决策背后的实测复现记录见 [`docs/measurements.md`](docs/measurements.md)。
@@ -204,14 +208,14 @@ v1.0-mini 全量轨迹注入（10 scene，`seed=42`，`configs/batch.yaml`，82 
 | 校验项 | 实测 | 阈值 |
 |---|---|---|
 | 校验通过 | 82/82 帧，0 失败 | — |
-| 坐标链往返残差 | 4.5e-13 | <1e-6 |
-| num_lidar_pts（逐目标） | 7 – 12000，全部 >0 | >0 |
+| 坐标链往返残差 | 3.4e-13 | <1e-6 |
+| num_lidar_pts（逐目标） | 3 – 12000，全部 >0 | >0 |
 | 尺寸合理性（最长边） | 2.71 – 3.88 m | 0.05 – 40 m |
-| Blender 内参自检 | 0.348 px | <2 px |
-| 点投影 ⊂ α 区域覆盖率 | 均值 0.993（最小 0.967；不可测者按边缘豁免） | ≥0.85 |
-| 3D 框投影 IoU | 均值 0.811（4 例低于阈值均为触边豁免） | ≥0.5 |
+| Blender 内参自检 | 0.358 px | <2 px |
+| 点投影 ⊂ α 区域覆盖率 | 均值 0.993（最小 0.974；不可测者按边缘豁免） | ≥0.85 |
+| 3D 框投影 IoU | 均值 0.813（4 例低于阈值均为触边豁免） | ≥0.5 |
 | **遮挡理由一致性** | **0 违例**（被遮挡像素均有更近几何） | 0 |
-| 遮挡成效 | 6.12% 目标像素被场景正确隐藏 | — |
+| 遮挡成效 | 6.38% 目标像素被场景正确隐藏 | — |
 
 > 上述数字随放置采样与遮挡实现变动，逐帧明细见各次运行的 `validation_report.json`
 > 与 `export_report.json`；每项的复现方式与原始输出见 [`docs/measurements.md`](docs/measurements.md)。

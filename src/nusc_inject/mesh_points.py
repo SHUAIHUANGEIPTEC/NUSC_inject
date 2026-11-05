@@ -74,11 +74,13 @@ def surface_signature(verts, faces) -> np.ndarray:
 
 
 def sample_mesh(path: str, n: int):
-    """Return (pts, normals, bbox_min, bbox_size, vsig) in the Blender frame.
+    """Return (pts, normals, bbox_min, bbox_size, vsig, verts) in the Blender frame.
 
     ``pts`` is (n,3) area-weighted surface samples, ``normals`` (n,3), and the
     bbox is exact (computed from all mesh vertices, not the samples).
     ``vsig`` is ``surface_signature`` over the same mesh — see there.
+    ``verts`` is (V,3) the mesh vertices themselves; ground contact must be
+    computed from them, because the bbox corners are not on the mesh.
 
     ``seed`` is pinned: trimesh samples from OS entropy by default, which made
     every run inject a different point set (and therefore a different
@@ -96,4 +98,4 @@ def sample_mesh(path: str, n: int):
     )
     bmin = verts.min(axis=0)
     bsize = verts.max(axis=0) - bmin
-    return pts, normals, bmin, bsize, surface_signature(verts, mesh.faces)
+    return pts, normals, bmin, bsize, surface_signature(verts, mesh.faces), verts
