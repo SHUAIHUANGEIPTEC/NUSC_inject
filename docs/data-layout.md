@@ -6,11 +6,11 @@
 本机当前状态（供参照，数字会随运行增减）：
 
 ```
-data/                 2.7G
+data/                 144M
 ├── nuscenes          0      → 软链到仓库外部的 nuScenes 数据集
 ├── models/          28K     第三方模型
-├── outputs/        2.5G     运行产物（9 个目录，其中批量运行占 2.3G）
-└── exports/        144M     nuScenes 格式导出
+├── outputs/           0     已清空（运行产物随时可重建，见 §6）
+└── exports/        144M     nuScenes 格式导出（交付物）
 ```
 
 ---
@@ -132,9 +132,16 @@ nuscenes-od-p0/
 | 想省空间 | 做法 | 省下 |
 |---|---|---|
 | 只要交付物 | 删 `data/outputs/p0/*/depth/` | 每帧约 22 MB × 相机数 |
-| 导出已完成 | 删 `data/outputs/p0/final_export/`（`specs.json` 已在导出目录里） | 约 2.3 GB |
+| 导出已完成后 | 删整个 `data/outputs/p0/`——`specs.json` 与全部交付物都在 `exports/` 里 | 批量运行约 2.3 GB |
 | 只保留合格帧 | 按 `validation_report.json` 的 `all_pass` 筛 | 视失败率 |
-| 重导出前腾空间 | 保留 `specs.json`，删其余 | 大幅 |
 | 换机器/归档 | 只需 `data/exports/<name>/` + `specs.json`（原数据集除外） | — |
 
 **不要删**：`data/nuscenes/`（导出目录的软链依赖它）、`data/exports/<name>/specs.json`。
+
+**已清空的状态下如何重建**（三者都脚本化，没有一次性手工产物）：
+
+| 想恢复 | 命令 | 耗时 |
+|---|---|---|
+| 出图素材（8 个 fixture） | `python scripts/make_doc_fixtures.py` | ~4 min |
+| 批量运行 + 导出 | `python scripts/run_batch.py --config configs/batch.yaml` | ~6 min |
+| 仅重导出 | 把 `exports/<name>/specs.json` 拷回任意运行目录，跑 `--export-only` | ~10 s |
