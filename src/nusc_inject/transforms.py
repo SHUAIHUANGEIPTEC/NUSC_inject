@@ -60,6 +60,37 @@ def yaw_to_quat(yaw: float):
     return (math.cos(half), 0.0, 0.0, math.sin(half))
 
 
+def euler_to_rot(yaw: float, pitch: float = 0.0, roll: float = 0.0) -> np.ndarray:
+    """ZYX intrinsic Euler angles -> 3x3 rotation matrix.
+
+    Rotates about +Z by ``yaw``, then about the *new* Y by ``pitch``, then
+    about the *new* X by ``roll``. All angles in radians, all in the caller's
+    frame (ego or lidar — the caller is responsible for the frame).
+
+    ZYX is the right convention here because ``yaw`` must reduce to
+    ``yaw_to_quat`` when pitch and roll are zero, so existing yaw-only
+    placements keep their exact behaviour.
+    """
+    cy, sy = math.cos(yaw), math.sin(yaw)
+    cp, sp = math.cos(pitch), math.sin(pitch)
+    cr, sr = math.cos(roll), math.sin(roll)
+    Rz = np.array([[cy, -sy, 0.0],
+                   [sy, cy, 0.0],
+                   [0.0, 0.0, 1.0]])
+    Ry = np.array([[cp, 0.0, sp],
+                   [0.0, 1.0, 0.0],
+                   [-sp, 0.0, cp]])
+    Rx = np.array([[1.0, 0.0, 0.0],
+                   [0.0, cr, -sr],
+                   [0.0, sr, cr]])
+    return Rz @ Ry @ Rx
+
+
+def euler_to_quat(yaw: float, pitch: float = 0.0, roll: float = 0.0):
+    """Same as :func:`euler_to_rot`, returning (w,x,y,z)."""
+    return rot_to_quat(euler_to_rot(yaw, pitch, roll))
+
+
 def make_T(rotation, translation) -> np.ndarray:
     T = np.eye(4)
     T[:3, :3] = quat_to_rot(rotation)

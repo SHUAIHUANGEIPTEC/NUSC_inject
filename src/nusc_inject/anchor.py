@@ -71,6 +71,23 @@ def _normalize_T(raw_bbox_min: np.ndarray) -> np.ndarray:
     return T
 
 
+def _ground_drop(R_lidar, raw_min, raw_size, scale) -> float:
+    """How far the lowest rotated bbox vertex sits below the placement anchor.
+
+    The placement anchor is the model's bbox-min corner. After a yaw-only
+    rotation that corner is still the lowest point, so this returns 0. Once
+    pitch/roll are involved the lowest vertex moves, and the anchor has to be
+    raised (or lowered) by this amount for the object to rest on the ground
+    rather than sink into it.
+    """
+    raw_min = np.asarray(raw_min, dtype=float)
+    raw_size = np.asarray(raw_size, dtype=float)
+    corners = np.array([raw_min + np.array([sx, sy, sz]) * raw_size
+                        for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
+    local = (corners - raw_min) * float(scale)      # bbox-min at origin, scaled
+    return float((np.asarray(R_lidar, dtype=float) @ local.T)[2, :].min())
+
+
 def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
              placement_cfg=None, raw_bbox=None) -> dict:
     """Compose the placement transform and return the gt dict.
@@ -100,7 +117,6 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
     # --- placement (offsets in the EGO frame by default: x fwd, y left, z up;
     #     nuScenes LIDAR_TOP is mounted ~-90° yaw vs ego -> convert via T_l2e)
     pl = placement_cfg
-    mounting_yaw = math.atan2(T_l2e[1, 0], T_l2e[0, 0])
 
     if "from_global" in pl:
         # frozen world pose (cross-frame tracking): same T_model2global every frame
@@ -116,13 +132,26 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
                           float(p_anchor_l[2]))
         yaw_lidar = math.atan2(R_pose[1, 0], R_pose[0, 0])
     else:
+        # Orientation is composed as a MATRIX PRODUCT, not the scalar subtraction
+        # that used to suffice: the LIDAR_TOP mounting rotation is a yaw about Z,
+        # which commutes with a yaw-only placement but NOT with pitch/roll about
+        # X/Y. R_lidar = R_l2e^T @ R_ego.
         if "offset_in_ego" in pl:
             off_ego = np.array([float(v) for v in pl["offset_in_ego"]])
             p_anchor_l = tf.transform_pts(np.linalg.inv(T_l2e), off_ego[None, :])[0]
-            yaw_lidar = math.radians(float(pl.get("yaw_in_ego_deg", 0.0))) - mounting_yaw
-        else:  # legacy: offsets and yaw already in the lidar frame
+            R_lidar = T_l2e[:3, :3].T @ tf.euler_to_rot(
+                math.radians(float(pl.get("yaw_in_ego_deg", 0.0))),
+                math.radians(float(pl.get("pitch_in_ego_deg", 0.0))),
+                math.radians(float(pl.get("roll_in_ego_deg", 0.0))),
+            )
+        else:  # legacy: offsets and orientation already in the lidar frame
             p_anchor_l = np.array([float(v) for v in pl["offset_in_lidar"]])
-            yaw_lidar = math.radians(float(pl.get("yaw_in_lidar_deg", 0.0)))
+            R_lidar = tf.euler_to_rot(
+                math.radians(float(pl.get("yaw_in_lidar_deg", 0.0))),
+                math.radians(float(pl.get("pitch_in_lidar_deg", 0.0))),
+                math.radians(float(pl.get("roll_in_lidar_deg", 0.0))),
+            )
+        yaw_lidar = math.atan2(R_lidar[1, 0], R_lidar[0, 0])
 
         x, y = float(p_anchor_l[0]), float(p_anchor_l[1])
 
@@ -139,8 +168,13 @@ def build_gt(cfg, meta, lidar_pts, sample=None, model_cfg=None,
         S = np.eye(4)
         S[0, 0] = S[1, 1] = S[2, 2] = scale
 
-        T_norm = _normalize_T(raw_min)  # bbox-min -> origin (object sits on z=0)
-        T_pose = tf.make_T(tf.yaw_to_quat(yaw_lidar), [x, y, ground_z])
+        T_norm = _normalize_T(raw_min)  # bbox-min -> origin
+        # Rest the LOWEST rotated vertex on the ground, not the bbox-min corner:
+        # with pitch/roll the two differ, and anchoring on the bbox-min would
+        # bury part of the object below ground. For a yaw-only placement
+        # z_drop is exactly 0, so this changes no existing behaviour.
+        z_drop = _ground_drop(R_lidar, raw_min, raw_size, scale)
+        T_pose = tf.make_T(tf.rot_to_quat(R_lidar), [x, y, ground_z - z_drop])
 
         T_model2lidar = T_pose @ S @ T_norm
         T_model2global = T_l2g @ T_model2lidar

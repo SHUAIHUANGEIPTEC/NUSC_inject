@@ -1,9 +1,12 @@
 """Anchor placement: ego-frame offsets, scaling, and the gt transform pair."""
 from __future__ import annotations
 
+import math
+
 import numpy as np
 import pytest
 
+from conftest import StubMeta
 from nusc_inject import anchor
 from nusc_inject import transforms as tf
 
@@ -208,3 +211,113 @@ def test_from_global_rejects_a_matrix_that_is_not_scale_times_rotation(meta, gro
     cfg = _cfg(placement={"from_global": bad.ravel().tolist()})
     with pytest.raises(ValueError, match="not a uniform scale"):
         anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+
+# ------------------------------------------------- pitch / roll placement
+
+
+def test_yaw_only_matches_the_scalar_formula_when_the_mount_is_pure_yaw(meta, ground_cloud):
+    """Regression: with a pure-yaw sensor mount the matrix product must
+    reproduce the old ``yaw_lidar = yaw_ego - mounting_yaw`` exactly."""
+    cfg = _cfg()
+    gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+    T_m2l = np.array(gt["T_model2lidar"]).reshape(4, 4)
+
+    lidar_sd = meta.sd_for_sample(gt["sample_token"], "LIDAR_TOP")
+    cs = meta.calib[lidar_sd["calibrated_sensor_token"]]
+    T_l2e = tf.make_T(cs["rotation"], cs["translation"])
+    mounting_yaw = math.atan2(T_l2e[1, 0], T_l2e[0, 0])
+    yaw_lidar_old = math.radians(cfg["placement"]["yaw_in_ego_deg"]) - mounting_yaw
+
+    off = np.array([cfg["placement"]["offset_in_ego"]])
+    p_l = tf.transform_pts(np.linalg.inv(T_l2e), off)[0]
+    scale = gt["scale"]
+    T_norm = np.eye(4)
+    T_norm[:3, 3] = -np.array(RAW_MIN)
+    T_pose_old = tf.make_T(tf.yaw_to_quat(yaw_lidar_old),
+                           [float(p_l[0]), float(p_l[1]), gt["ground_z_lidar"]])
+    T_m2l_old = T_pose_old @ np.diag([scale, scale, scale, 1.0]) @ T_norm
+
+    assert np.allclose(T_m2l, T_m2l_old, atol=1e-12)
+    assert gt["placement"]["yaw_in_lidar_deg"] == pytest.approx(math.degrees(yaw_lidar_old))
+
+
+def test_yaw_only_stands_on_the_ego_vertical_with_a_tilted_mount(ground_cloud):
+    """Real nuScenes calibration mounts LIDAR_TOP with ~1.4 deg of pitch.
+
+    The old scalar formula left every injected object tilted by that much
+    relative to the ground; composing the rotation as a matrix does not.
+    """
+    tilted = StubMeta(lidar_pitch_deg=1.4)
+    cfg = _cfg()
+    gt = anchor.build_gt(cfg, tilted, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+    lidar_sd = tilted.sd_for_sample(gt["sample_token"], "LIDAR_TOP")
+    cs = tilted.calib[lidar_sd["calibrated_sensor_token"]]
+    T_l2e = tf.make_T(cs["rotation"], cs["translation"])
+
+    R_m2l = np.array(gt["T_model2lidar"]).reshape(4, 4)[:3, :3] / gt["scale"]
+    up_lidar = R_m2l @ np.array([0.0, 0.0, 1.0])
+    ego_up_in_lidar = T_l2e[:3, :3].T @ np.array([0.0, 0.0, 1.0])
+
+    assert np.allclose(up_lidar, ego_up_in_lidar, atol=1e-12)
+    # the tilt is real, so this is NOT trivially the lidar z axis
+    assert not np.allclose(ego_up_in_lidar, [0.0, 0.0, 1.0], atol=1e-3)
+
+
+def test_pitch_is_composed_through_the_mounting_rotation(meta, ground_cloud):
+    """+pitch must be rotated into the lidar frame, not simply applied there.
+
+    LIDAR_TOP is mounted at ~-90 deg yaw vs ego, so a pitch about the ego Y
+    axis does NOT stay a pitch about the lidar Y axis. Asserting the matrix
+    product catches anyone who "simplifies" this back to a scalar addition.
+    """
+    pitch_ego = math.radians(30.0)
+    cfg = _cfg(placement={"strategy": "ego_offset", "offset_in_ego": [12.0, 0.0, 0.0],
+                          "yaw_in_ego_deg": 0.0, "pitch_in_ego_deg": 30.0,
+                          "ground": {"search_radius_m": 4.0, "z_percentile": 15.0}})
+    gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+    lidar_sd = meta.sd_for_sample(gt["sample_token"], "LIDAR_TOP")
+    cs = meta.calib[lidar_sd["calibrated_sensor_token"]]
+    T_l2e = tf.make_T(cs["rotation"], cs["translation"])
+    R_expected = T_l2e[:3, :3].T @ tf.euler_to_rot(0.0, pitch_ego, 0.0)
+
+    R_actual = np.array(gt["T_model2lidar"]).reshape(4, 4)[:3, :3] / gt["scale"]
+    assert np.allclose(R_actual, R_expected, atol=1e-12)
+
+    # a naive "pitch straight in the lidar frame" must be wrong here
+    R_naive = tf.euler_to_rot(0.0, pitch_ego, 0.0)
+    assert not np.allclose(R_actual, R_naive, atol=1e-6), \
+        "pitch was applied in the lidar frame instead of through T_l2e"
+
+
+def test_roll_also_composes_through_the_mounting_rotation(meta, ground_cloud):
+    cfg = _cfg(placement={"strategy": "ego_offset", "offset_in_ego": [12.0, 0.0, 0.0],
+                          "yaw_in_ego_deg": 0.0, "roll_in_ego_deg": 25.0,
+                          "ground": {"search_radius_m": 4.0, "z_percentile": 15.0}})
+    gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+    lidar_sd = meta.sd_for_sample(gt["sample_token"], "LIDAR_TOP")
+    cs = meta.calib[lidar_sd["calibrated_sensor_token"]]
+    T_l2e = tf.make_T(cs["rotation"], cs["translation"])
+    R_expected = T_l2e[:3, :3].T @ tf.euler_to_rot(0.0, 0.0, math.radians(25.0))
+    R_actual = np.array(gt["T_model2lidar"]).reshape(4, 4)[:3, :3] / gt["scale"]
+    assert np.allclose(R_actual, R_expected, atol=1e-12)
+
+
+def test_tilted_object_still_sits_on_the_ground(meta, ground_cloud):
+    """Ground contact must be by the lowest vertex, whatever the tilt."""
+    cfg = _cfg(placement={"strategy": "ego_offset", "offset_in_ego": [12.0, 0.0, 0.0],
+                          "yaw_in_ego_deg": 30.0, "pitch_in_ego_deg": 20.0,
+                          "roll_in_ego_deg": -15.0,
+                          "ground": {"search_radius_m": 4.0, "z_percentile": 15.0}})
+    gt = anchor.build_gt(cfg, meta, ground_cloud, raw_bbox=(RAW_MIN, RAW_SIZE))
+
+    T_m2l = np.array(gt["T_model2lidar"]).reshape(4, 4)
+    corners = np.array([np.array(RAW_MIN) + np.array([sx, sy, sz]) * np.array(RAW_SIZE)
+                        for sx in (0, 1) for sy in (0, 1) for sz in (0, 1)])
+    pts = (T_m2l[:3, :3] @ corners.T).T + T_m2l[:3, 3]
+    # T_norm moved bbox-min to the origin, so the lowest vertex is exactly
+    # where the object was dropped: ground_z.
+    assert pts[:, 2].min() == pytest.approx(gt["ground_z_lidar"], abs=1e-9)

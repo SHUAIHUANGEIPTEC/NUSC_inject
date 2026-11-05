@@ -103,3 +103,51 @@ def test_lidar_to_cam_T_roundtrip(meta):
 def test_blender_cam_world_flips_opencv_axes():
     T = np.eye(4)
     assert np.allclose(tf.blender_cam_world(T), np.diag([1.0, -1.0, -1.0, 1.0]))
+
+
+# ------------------------------------------------------------- euler angles
+
+
+def test_euler_zero_is_identity():
+    assert np.allclose(tf.euler_to_rot(0.0, 0.0, 0.0), np.eye(3))
+
+
+def test_euler_yaw_only_matches_yaw_to_quat():
+    for yaw in (0.0, 0.37, -1.2, math.pi):
+        assert np.allclose(tf.euler_to_rot(yaw), tf.quat_to_rot(tf.yaw_to_quat(yaw)),
+                           atol=1e-12)
+        assert np.allclose(tf.euler_to_quat(yaw), tf.yaw_to_quat(yaw), atol=1e-12)
+
+
+def test_euler_is_zyx_intrinsic():
+    """Rz(yaw) @ Ry(pitch) @ Rx(roll) — verified by acting on basis vectors."""
+    y, p, r = 0.4, -0.3, 0.9
+    cy, sy = math.cos(y), math.sin(y)
+    cp, sp = math.cos(p), math.sin(p)
+    cr, sr = math.cos(r), math.sin(r)
+    Rz = np.array([[cy, -sy, 0], [sy, cy, 0], [0, 0, 1]])
+    Ry = np.array([[cp, 0, sp], [0, 1, 0], [-sp, 0, cp]])
+    Rx = np.array([[1, 0, 0], [0, cr, -sr], [0, sr, cr]])
+    assert np.allclose(tf.euler_to_rot(y, p, r), Rz @ Ry @ Rx, atol=1e-12)
+
+
+def test_euler_rotation_is_orthonormal():
+    for y, p, r in ((0.1, 0.2, 0.3), (-1.0, 1.4, 0.0), (0.0, 0.0, math.pi / 2)):
+        R = tf.euler_to_rot(y, p, r)
+        assert np.allclose(R @ R.T, np.eye(3), atol=1e-12)
+        assert np.isclose(np.linalg.det(R), 1.0)
+
+
+def test_euler_pitch_tips_the_top_forward():
+    """In a z-up frame with +x forward, +pitch about +Y tips +Z (up) toward
+    +X (forward) and the nose (+x) toward -Z (down). Right-hand rule; see
+    docs/model-input.md for the user-facing sign convention."""
+    R = tf.euler_to_rot(0.0, math.radians(90.0), 0.0)
+    assert np.allclose(R @ np.array([0.0, 0.0, 1.0]), [1.0, 0.0, 0.0], atol=1e-9)
+    assert np.allclose(R @ np.array([1.0, 0.0, 0.0]), [0.0, 0.0, -1.0], atol=1e-9)
+
+
+def test_euler_roll_tilts_the_top_to_the_right():
+    """+roll about +X tips +Z (up) toward -Y (right), again right-hand rule."""
+    R = tf.euler_to_rot(0.0, 0.0, math.radians(90.0))
+    assert np.allclose(R @ np.array([0.0, 0.0, 1.0]), [0.0, -1.0, 0.0], atol=1e-9)

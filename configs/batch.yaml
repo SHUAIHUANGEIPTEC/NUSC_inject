@@ -26,6 +26,8 @@ objects:
   forward_range_m: [8.0, 30.0]        # ego-frame x at placement time
   lateral_range_m: [-4.0, 4.0]        # ego-frame y
   yaw_in_ego_deg_range: [0.0, 360.0]
+  pitch_in_ego_deg_range: [0.0, 0.0]   # 默认 0，不改变既有配置行为
+  roll_in_ego_deg_range: [0.0, 0.0]
   min_spacing_m: 6.0                  # legacy mode: reject closer placements
   ground:
     search_radius_m: 4.0

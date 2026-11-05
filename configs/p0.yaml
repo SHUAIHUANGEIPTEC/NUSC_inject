@@ -21,7 +21,9 @@ placement:
   # offsets in the EGO frame: x forward, y left, z up (not the lidar frame:
   # nuScenes LIDAR_TOP is mounted ~-90° yaw vs ego)
   offset_in_ego: [12.0, 0.0, 0.0]
-  yaw_in_ego_deg: 30.0
+  yaw_in_ego_deg: 30.0        # 绕 ego Z（偏航）
+  pitch_in_ego_deg: 0.0       # 绕 ego Y（俯仰 / 低头抬头）
+  roll_in_ego_deg: 0.0        # 绕 ego X（滚转）
   ground:
     search_radius_m: 4.0
     z_percentile: 15.0

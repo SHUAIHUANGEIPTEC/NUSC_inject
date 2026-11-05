@@ -57,12 +57,12 @@
 
 | 校验项 | 实测 | 阈值 | 结果 |
 |---|---|---|---|
-| 坐标链往返残差 | 6.0e-14 | <1e-6 | ✅ |
-| `num_lidar_pts` | 4202 | >0 | ✅ |
+| 坐标链往返残差 | 1.5e-13 | <1e-6 | ✅ |
+| `num_lidar_pts` | 4353 | >0 | ✅ |
 | Blender 内参自检 | 0.006 px | <2 px | ✅ |
-| 点投影 ⊂ α 覆盖率 | 0.997 | ≥0.85 | ✅ |
-| 3D 框投影 IoU | 0.884 | ≥0.5（触边豁免） | ✅ |
-| 被遮挡像素 / 无理由遮挡 | 648（1.9%）/ **0** | 0 违例 | ✅ |
+| 点投影 ⊂ α 覆盖率 | 0.996 | ≥0.85 | ✅ |
+| 3D 框投影 IoU | 0.860 | ≥0.5（触边豁免） | ✅ |
+| 被遮挡像素 / 无理由遮挡 | 305（0.9%）/ **0** | 0 违例 | ✅ |
 
 ### 3.2 同帧多目标（run-id `fig_two_final`）
 
@@ -75,9 +75,9 @@
 | 校验项 | CAM_FRONT | CAM_FRONT_LEFT |
 |---|---|---|
 | 点投影 ⊂ α 覆盖率 | 0.998 | 1.000 |
-| 3D 框投影 IoU | 0.970 | 0.697（触边豁免） |
-| 被遮挡像素 / 无理由遮挡 | 2564 / **0** | 0 / **0** |
-| `num_lidar_pts` | 3591 | 5918 |
+| 3D 框投影 IoU | 0.958 | 0.700（触边豁免） |
+| 被遮挡像素 / 无理由遮挡 | 2205 / **0** | 0 / **0** |
+| `num_lidar_pts` | 3679 | 5977 |
 
 批量放置可复现：`np.random.default_rng([seed, sample_index])`。
 
@@ -116,12 +116,12 @@ export_report.json
 | 指标 | 值 |
 |---|---|
 | 覆盖场景 | 10 个 scene（scene-0061 … scene-1100） |
-| 注入帧数 | 59 sample |
-| 注入轨迹 | 15 tracks 实现（计划 20），59 帧标注 |
-| 新增 annotation | **66** 条（总 18604 = 18538 + 66） |
+| 注入帧数 | 82 sample |
+| 注入轨迹 | 17 tracks 实现（计划 20），82 帧标注 |
+| 新增 annotation | **83** 条（总 18621 = 18538 + 83） |
 | 新 category / attribute | `movable_object.anomaly` / `vehicle.moving` |
-| 校验通过 | 59/59 帧（`end_reasons` 中无 `validation_failed`） |
-| 遮挡成效 | 6.85% 目标像素被场景正确隐藏，0 违例无理由遮挡 |
+| 校验通过 | 82/82 帧（`end_reasons` 中无 `validation_failed`） |
+| 遮挡成效 | 6.12% 目标像素被场景正确隐藏，0 违例无理由遮挡 |
 | devkit 校验 | `verify.ok = true`，0 problems |
 
 > 本节数字对应 `sample_annotation.size` 轴序修复、原始回波 gap-fill、遮挡体逐像素
@@ -202,7 +202,7 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
   边缘目标覆盖率豁免；新增遮挡理由一致性校验（0 违例）
 - ✅ **规格保护**：退化 `scale` 输入、`from_global` 的 scale 回收、尺寸合理性阈值、
   `.obj/.fbx` 轴转换、漂移守卫改为形状敏感（bbox + 表面积 + 面积质心）
-- ✅ 当前导出：59 帧 / 15 轨迹 / 66 标注，59/59 帧校验通过，devkit `verify.ok`
+- ✅ 当前导出：82 帧 / 17 轨迹 / 83 标注，82/82 帧校验通过，devkit `verify.ok`
 
 **后续（超出当前范围）**
 - 批量到 150 scene / 训练数据集生产

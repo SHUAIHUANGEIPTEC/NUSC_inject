@@ -141,12 +141,29 @@ scale 显式给出      → 用 scale（构造时会对 ≤0 / 非有限值报�
 | 参数 | 默认 | 说明 |
 |---|---|---|
 | `offset_in_ego` | — | `[前, 左, 上]`，单位米，**ego 系** |
-| `yaw_in_ego_deg` | `0` | 目标朝向，ego 系 |
+| `yaw_in_ego_deg` | `0` | 偏航，绕 ego **Z** 轴（正 = 逆时针俯视） |
+| `pitch_in_ego_deg` | `0` | 俯仰，绕 ego **Y** 轴 |
+| `roll_in_ego_deg` | `0` | 滚转，绕 ego **X** 轴 |
 | `ground.search_radius_m` | `4.0` | 在该半径内找地面点估计高度 |
 | `ground.z_percentile` | `15.0` | 取该分位数作为地面 z |
 
-> 为什么是 **ego 系**而不是 lidar 系：nuScenes 的 `LIDAR_TOP` 相对 ego 约有 −90° 偏航安装旋转，
-> 直接用 lidar 系会让人对「前方」产生错觉。`anchor.py` 内部做换算。
+**姿态约定**：ZYX 内旋欧拉角 —— 先绕 Z 偏航，再绕**新的** Y 俯仰，最后绕**新的** X 滚转
+（等价于 `R = Rz(yaw)·Ry(pitch)·Rx(roll)`）。符号按右手定则：
+
+| 正角度 | 效果 |
+|---|---|
+| `yaw` + | 逆时针俯视旋转 |
+| `pitch` + | 物体顶部向 **+X（前）** 倾倒，即「前倾 / 低头」 |
+| `roll` + | 物体顶部向 **−Y（右）** 倾倒，即「右倾」 |
+
+> **落地方式**：物体按**最低顶点**贴地，不是按包围盒角点。倾斜后最低点会变，
+> `anchor._ground_drop` 会把放置锚点相应抬高/降低，所以倾斜目标不会沉进地面。
+> yaw-only 时该修正量恒为 0，不影响既有行为。
+
+> 为什么是 **ego 系**而不是 lidar 系：nuScenes 的 `LIDAR_TOP` 相对 ego 约有 −90° 偏航安装旋转
+> （实际标定还带约 1.4° 的俯仰/滚转），直接用 lidar 系会让人对「前方」产生错觉。
+> `anchor.py` 内部按 **矩阵合成**换算：`R_lidar = R_l2e^T · R_ego`——
+> 不能对角度做标量相减，因为绕 X/Y 的旋转与安装偏航不可交换。
 
 ### 批量（`configs/batch.yaml` 的 `objects:`）
 
@@ -155,7 +172,9 @@ scale 显式给出      → 用 scale（构造时会对 ≤0 / 非有限值报�
 | `count` | `2` | 每帧目标数（tracking 模式下为每场景轨迹数） |
 | `forward_range_m` | `[8,30]` | ego 系前向随机范围 |
 | `lateral_range_m` | `[-4,4]` | ego 系横向随机范围 |
-| `yaw_in_ego_deg_range` | `[0,360]` | 朝向随机范围 |
+| `yaw_in_ego_deg_range` | `[0,360]` | 偏航随机范围 |
+| `pitch_in_ego_deg_range` | `[0,0]` | 俯仰随机范围（默认固定 0） |
+| `roll_in_ego_deg_range` | `[0,0]` | 滚转随机范围（默认固定 0） |
 | `min_spacing_m` | `6.0` | legacy 模式目标间最小间距 |
 | `seed` | `42` | 确定性随机种子 |
 | `tracking.enabled` | `true` | 跨帧轨迹模式（世界系静止目标 + prev/next 链） |

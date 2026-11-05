@@ -10,13 +10,16 @@ from nusc_inject import transforms as tf
 class StubMeta:
     """Implements only what anchor / occluders read from NuScenesMini."""
 
-    def __init__(self, lidar_yaw_deg=-90.0, ego_yaw_deg=15.0,
+    def __init__(self, lidar_yaw_deg=-90.0, lidar_pitch_deg=0.0, ego_yaw_deg=15.0,
                  ego_translation=(100.0, 200.0, 0.0), annotations=None,
                  sample_token="sample0"):
         self.sample_rec = {"token": sample_token, "scene_token": "scene0"}
         self.calib = {
             "cs_l": {
-                "rotation": tf.yaw_to_quat(np.radians(lidar_yaw_deg)),
+                # real nuScenes calibration carries a small mounting pitch on
+                # LIDAR_TOP; keep it configurable so tests can cover both
+                "rotation": tf.euler_to_quat(np.radians(lidar_yaw_deg),
+                                             np.radians(lidar_pitch_deg), 0.0),
                 "translation": [0.0, 0.0, 1.8],
                 "camera_intrinsic": [[100.0, 0.0, 320.0],
                                      [0.0, 100.0, 240.0],

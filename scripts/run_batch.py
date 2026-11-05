@@ -41,11 +41,16 @@ def _plan_one(cfg, rng, overrides=None):
     fwd_lo, fwd_hi = [float(v) for v in oc.get("forward_range_m", (8.0, 30.0))]
     lat_lo, lat_hi = [float(v) for v in oc.get("lateral_range_m", (-4.0, 4.0))]
     yaw_lo, yaw_hi = [float(v) for v in oc.get("yaw_in_ego_deg_range", (0.0, 360.0))]
+    # pitch/roll default to a fixed 0 so existing configs are unaffected
+    pitch_lo, pitch_hi = [float(v) for v in oc.get("pitch_in_ego_deg_range", (0.0, 0.0))]
+    roll_lo, roll_hi = [float(v) for v in oc.get("roll_in_ego_deg_range", (0.0, 0.0))]
     ground = oc.get("ground", {"search_radius_m": 4.0, "z_percentile": 15.0})
 
     fwd = float(rng.uniform(fwd_lo, fwd_hi))
     lat = float(rng.uniform(lat_lo, lat_hi))
     yaw = float(rng.uniform(yaw_lo, yaw_hi))
+    pitch = float(rng.uniform(pitch_lo, pitch_hi))
+    roll = float(rng.uniform(roll_lo, roll_hi))
 
     pool = cfg["models"]
     model = dict(pool[int(rng.integers(0, len(pool)))])
@@ -59,6 +64,8 @@ def _plan_one(cfg, rng, overrides=None):
             "strategy": "random_forward",
             "offset_in_ego": [fwd, lat, 0.0],
             "yaw_in_ego_deg": yaw,
+            "pitch_in_ego_deg": pitch,
+            "roll_in_ego_deg": roll,
             "ground": ground,
         },
     }
