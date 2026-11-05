@@ -10,6 +10,7 @@
 
 > 📄 **图文工作总结**（含管线流程图、验收数据、踩坑记录）：[docs/summary/README.md](docs/summary/README.md)
 > ｜ 模型输入格式与参数：[docs/model-input.md](docs/model-input.md)
+> ｜ `data/` 目录结构与清理：[docs/data-layout.md](docs/data-layout.md)
 > ｜ 实测数据存档：[docs/measurements.md](docs/measurements.md)
 
 ## 设计核心
@@ -55,14 +56,17 @@ python scripts/download_models.py --uids <uid1> <uid2>   # -> data/models/*.glb
 
 ```
 data/
-├── nuscenes/                # nuScenes 根目录（自行从官网下载）
-│   ├── v1.0-mini/           # 13 张元数据表
-│   ├── samples/             # keyframe 相机 + LIDAR_TOP
-│   ├── sweeps/
-│   └── maps/
-├── models/                  # 任意 .glb/.gltf/.obj/.fbx/.ply
-└── outputs/                 # 运行产物（自动创建，已 gitignore）
+├── nuscenes/                # 【你提供】nuScenes 根目录，建议软链到仓库外
+│   ├── v1.0-mini/           #   13 张元数据表
+│   ├── samples/             #   keyframe 相机 + LIDAR_TOP
+│   └── sweeps/  maps/
+├── models/                  # 【你提供】任意 .glb/.gltf/.obj/.fbx/.ply
+├── outputs/                 # 【管线生成】运行产物，可随时删
+└── exports/                 # 【管线生成】nuScenes 格式数据集，即交付物
 ```
+
+`data/` 全部是运行期数据、不进版本控制，克隆后并不存在。每个子目录的内容、产生者、
+体积构成与清理方式见 **[`docs/data-layout.md`](docs/data-layout.md)**。
 
 把模型放到 `data/models/` 后，改 `configs/*.yaml` 中的 `model.path`（单目标）或
 `models[].path`（批量模型池）指向该文件。支持 `.glb / .gltf / .obj / .fbx / .ply`
@@ -127,28 +131,17 @@ pytest                     # 134 passed，≈0.5s，不需要 nuScenes 数据与
 
 ## 产物
 
-**单次/批量运行**（`data/outputs/p0/<run_id>/`）：
+两条产物流：
 
-| 文件 | 说明 |
-|---|---|
-| `gt.json` / `sample_XXXX/gt.json` | 单一 3D 真值（translation/size/rotation + 全链变换） |
-| `lidar/injected.pcd.bin` | 注入后点云（原生 (N,5)；原始点只在被物体遮挡处剔除） |
-| `blender/CAM_*.png` | Blender RGBA 前景 |
-| `composite/CAM_*.jpg` | 合成后的相机图像 |
-| `validation_report.json` | Step-6 一致性校验 |
-| `viz/*_overlay.jpg` | 点云投影叠加图 |
-| `spec.json` / `specs.json` | Step-5 导出规格（标注行 + 替换文件映射） |
+| 位置 | 是什么 | 能否删 |
+|---|---|---|
+| `data/outputs/p0/<run_id>/` | **过程**：每帧的真值、注入点云、渲染前景、合成图、深度缓冲、校验报告 | 可，重跑即得 |
+| `data/exports/nuscenes-od-p0/` | **交付物**：标准 nuScenes 格式数据集，devkit 可直接加载 | 谨慎，`specs.json` 是来源凭证 |
 
-**标准 nuScenes 格式导出**（`data/exports/nuscenes-od-p0/`）：
+导出目录里 `samples/` 只有被注入替换过的 125 个文件是实拷，其余 4723 个是软链指回原数据集
+（所以 84M 就能独立加载，但**原数据集不能删**）。
 
-```
-v1.0-mini/            # 13 张表：原表 + 追加的 category/attribute/instance/sample_annotation
-samples/              # 逐文件软链原数据；被注入的 lidar/相机文件为真实拷贝
-sweeps/ -> 原数据     # 软链（未改动）
-maps/   -> 原数据     # 软链
-export_report.json    # 导出统计 + devkit 校验结果
-devkit_render.png     # 官方 render_sample 渲染样例
-```
+逐文件清单、体积构成、按通道归属与清理方式见 **[`docs/data-layout.md`](docs/data-layout.md)**。
 
 下游直接：
 
@@ -157,7 +150,9 @@ from nuscenes.nuscenes import NuScenes
 from nusc_inject.annotation import patch_devkit_colormap
 nusc = NuScenes(version='v1.0-mini', dataroot='data/exports/nuscenes-od-p0')
 patch_devkit_colormap(nusc, 'movable_object.anomaly')  # render_* 前打一次
-# 过滤注入目标：category == movable_object.anomaly（token 确定性可复现）
+# 过滤注入目标：本默认导出用 category == movable_object.anomaly 即可
+# 若注入目标复用了已有类目（如 human.pedestrian.adult），必须按 token 过滤：
+#   injected = set(json.load(open(export_report))['export']['instance_tokens'])
 ```
 
 ## 已验证事实
