@@ -1,0 +1,109 @@
+lvis_class,class_cn,group,group_cn,tier,nuscenes_category,n_models,size_MB,materials,textures,reason
+bicycle,自行车,atypical_actors,非典型交通参与者,ID-CORE,vehicle.bicycle,44,440.05,202,227,nuScenes 有 vehicle.bicycle，属 detection 10 类
+motorcycle,摩托车,atypical_actors,非典型交通参与者,ID-CORE,vehicle.motorcycle,37,329.13,209,266,nuScenes 有 vehicle.motorcycle，属 detection 10 类
+bulldozer,推土机,construction,施工/工业设备,ID-CORE,vehicle.construction,20,216.21,61,75,nuScenes vehicle.construction 的典型实例
+forklift,叉车,construction,施工/工业设备,ID-CORE,vehicle.construction,28,163.78,205,228,nuScenes vehicle.construction 定义覆盖
+power_shovel,挖掘机,construction,施工/工业设备,ID-CORE,vehicle.construction,13,41.65,70,68,挖掘机 = vehicle.construction 的典型实例
+sawhorse,锯木架/施工支架,dropped_items,遗撒物/杂物,ID-CORE,movable_object.barrier,9,56.3,30,13,施工用锯木架即临时路障支架，归 barrier
+cone,交通锥,road_facilities,道路设施,ID-CORE,movable_object.trafficcone,80,168.27,117,263,nuScenes 有 movable_object.trafficcone，且属 detection 10 类
+jersey,泽西护栏/水泥隔离墩,road_facilities,道路设施,ID-CORE,movable_object.barrier,13,114.09,33,28,泽西护栏 = nuScenes movable_object.barrier 的典型形态
+bear,熊,animals,动物,ID-TAIL,animal,25,156.76,50,61,nuScenes 确有 animal 类目，但全库仅个位数实例
+camel,骆驼,animals,动物,ID-TAIL,animal,12,47.62,18,16,同上：animal 税则内，极稀有
+cat,猫,animals,动物,ID-TAIL,animal,45,197.07,65,82,同上：animal 税则内，极稀有
+chicken_(animal),鸡,animals,动物,ID-TAIL,animal,29,79.39,69,76,同上：animal 税则内，极稀有
+cow,母牛,animals,动物,ID-TAIL,animal,30,90.32,95,70,同上：animal 税则内，极稀有
+deer,鹿,animals,动物,ID-TAIL,animal,25,93.53,76,90,同上：animal 税则内，极稀有
+dog,狗,animals,动物,ID-TAIL,animal,52,171.45,97,115,同上：animal 税则内，极稀有
+domestic_ass,驴,animals,动物,ID-TAIL,animal,7,22.71,15,15,同上：animal 税则内，极稀有
+duck,鸭,animals,动物,ID-TAIL,animal,18,45.88,40,46,同上：animal 税则内，极稀有
+elephant,大象,animals,动物,ID-TAIL,animal,50,312.67,83,106,同上：animal 税则内，极稀有
+frog,青蛙,animals,动物,ID-TAIL,animal,57,370.54,184,206,同上：尺寸过小，animal 税则内
+giraffe,长颈鹿,animals,动物,ID-TAIL,animal,39,160.86,79,73,同上：animal 税则内，极稀有
+goat,山羊,animals,动物,ID-TAIL,animal,8,20.7,10,17,同上：animal 税则内，极稀有
+goose,鹅,animals,动物,ID-TAIL,animal,17,80.93,28,27,同上：animal 税则内，极稀有
+hippopotamus,河马,animals,动物,ID-TAIL,animal,15,64.89,17,29,同上：animal 税则内，极稀有
+hog,猪,animals,动物,ID-TAIL,animal,41,197.98,106,141,同上：animal 税则内，极稀有
+horse,马,animals,动物,ID-TAIL,animal,34,259.88,79,87,同上：animal 税则内，极稀有
+lion,狮子,animals,动物,ID-TAIL,animal,60,505.79,90,115,同上：animal 税则内，极稀有
+monkey,猴子,animals,动物,ID-TAIL,animal,56,155.45,301,276,同上：animal 税则内，极稀有
+rabbit,兔子,animals,动物,ID-TAIL,animal,46,210.93,204,141,同上：animal 税则内，极稀有
+rhinoceros,犀牛,animals,动物,ID-TAIL,animal,38,154.94,64,99,同上：animal 税则内，极稀有
+sheep,绵羊,animals,动物,ID-TAIL,animal,14,100.18,31,28,同上：animal 税则内，极稀有
+snake,蛇,animals,动物,ID-TAIL,animal,48,357.39,131,188,同上：尺寸过小，animal 税则内
+squirrel,松鼠,animals,动物,ID-TAIL,animal,20,72.49,43,45,同上：尺寸过小，animal 税则内
+tiger,老虎,animals,动物,ID-TAIL,animal,39,144.46,62,87,同上：animal 税则内，极稀有
+turtle,乌龟,animals,动物,ID-TAIL,animal,51,366.01,110,139,同上：尺寸过小，animal 税则内
+zebra,斑马,animals,动物,ID-TAIL,animal,14,33.3,34,27,同上：animal 税则内，极稀有
+baby_buggy,婴儿车,atypical_actors,非典型交通参与者,ID-TAIL,human.pedestrian.stroller,7,65.29,35,32,nuScenes 有 human.pedestrian.stroller，mini 零标注
+motor_scooter,电动踏板车,atypical_actors,非典型交通参与者,ID-TAIL,vehicle.motorcycle,37,252.17,186,278,电动踏板/小排量踏板车，归 motorcycle 但形态不标准
+shopping_cart,购物车,atypical_actors,非典型交通参与者,ID-TAIL,movable_object.pushable_pullable,14,64.28,45,61,推车 = pushable_pullable 的典型例子
+skateboard,滑板,atypical_actors,非典型交通参与者,ID-TAIL,human.pedestrian.personal_mobility,84,391.89,228,395,nuScenes 有 human.pedestrian.personal_mobility，mini 25 帧
+wheelchair,轮椅,atypical_actors,非典型交通参与者,ID-TAIL,human.pedestrian.wheelchair,25,113.29,138,205,nuScenes 有 human.pedestrian.wheelchair，mini 零标注
+barrel,桶,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,63,118.73,146,226,油桶：可移动、留在可行驶面上 —— debris 的定义
+barrow,独轮手推车,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.pushable_pullable,14,49.27,26,46,独轮手推车 = 推/拉对象
+box,盒子,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,36,88.05,165,143,纸箱遗撒，debris 定义内
+bucket,桶,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,44,114.12,74,154,桶类遗撒，debris 定义内
+cooler_(for_food),保鲜箱（用于食物）,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.pushable_pullable,7,25.66,17,32,保温箱：可推拉的小件
+crate,板条箱,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,88,212.0,126,307,板条箱遗撒，debris 定义内
+handcart,手推车,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.pushable_pullable,31,170.82,68,129,手推车 = 推/拉对象
+ladder,梯子,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,18,25.14,77,85,梯子掉落，debris 定义内
+log,原木,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,47,476.6,73,117,原木掉落，debris 定义内
+mattress,床垫,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,22,91.45,77,97,床垫遗撒，debris 定义内
+pipe,管材,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,19,98.8,28,67,管材遗撒，debris 定义内
+suitcase,手提箱,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.pushable_pullable,27,168.71,103,118,行李箱是 nuScenes pushable_pullable 的教科书例子
+tarp,防水帆布,dropped_items,遗撒物/杂物,ID-TAIL,movable_object.debris,8,121.97,14,15,篷布遗撒（可覆盖路面），debris 定义内
+dumpster,垃圾箱,road_facilities,道路设施,ID-TAIL,movable_object.pushable_pullable,46,187.49,119,217,大型垃圾箱：项目已实测用 pushable_pullable 落库；该类在 mini 仅 82 帧
+trash_can,垃圾桶,road_facilities,道路设施,ID-TAIL,movable_object.pushable_pullable,43,130.97,66,142,垃圾桶归 pushable_pullable；mini 仅 82 帧（全类合计）
+boat,船,atypical_actors,非典型交通参与者,OOD,,30,163.4,330,161,船舶，nuScenes 城市场景无此税则
+canoe,独木舟,atypical_actors,非典型交通参与者,OOD,,22,110.89,145,175,独木舟，非道路目标
+golfcart,高尔夫球车,atypical_actors,非典型交通参与者,OOD,,12,47.38,73,53,场地车，nuScenes 无对应税则
+horse_buggy,马车,atypical_actors,非典型交通参与者,OOD,,7,33.14,75,63,马车，nuScenes 无对应税则
+horse_carriage,马车,atypical_actors,非典型交通参与者,OOD,,14,139.35,82,68,马车，nuScenes 无对应税则
+kayak,皮艇,atypical_actors,非典型交通参与者,OOD,,21,209.04,59,59,皮划艇，非道路目标
+sled,雪橇,atypical_actors,非典型交通参与者,OOD,,6,31.13,46,46,雪橇，非道路目标
+snowmobile,雪地摩托,atypical_actors,非典型交通参与者,OOD,,7,47.46,24,33,雪地摩托，nuScenes 无对应税则
+surfboard,冲浪板,atypical_actors,非典型交通参与者,OOD,,19,55.48,44,41,冲浪板，非道路目标
+generator,发电机,construction,施工/工业设备,OOD,,35,295.41,233,186,发电机组：非车辆、非路面可移动物
+lawn_mower,割草机,construction,施工/工业设备,OOD,,10,66.84,16,21,割草机：可移动但 nuScenes 无此税则
+plow_(farm_equipment),犁（农用设备）,construction,施工/工业设备,OOD,,14,111.92,68,109,农具：nuScenes construction 限定为施工用途
+tractor_(farm_equipment),拖拉机,construction,施工/工业设备,OOD,,40,635.57,213,386,农用拖拉机：nuScenes construction 限定为施工用途
+armoire,衣柜,dropped_items,遗撒物/杂物,OOD,,52,361.91,177,247,整体衣柜，体量与路面遗撒物不符
+automatic_washer,自动洗衣机,dropped_items,遗撒物/杂物,OOD,,22,72.82,94,83,家电，nuScenes 无对应税则
+bathtub,浴缸,dropped_items,遗撒物/杂物,OOD,,14,79.96,55,86,卫浴大件，nuScenes 无对应税则
+bed,床,dropped_items,遗撒物/杂物,OOD,,33,241.32,192,200,大件家具
+bookcase,书柜,dropped_items,遗撒物/杂物,OOD,,58,354.36,445,308,大件家具
+cabinet,柜子,dropped_items,遗撒物/杂物,OOD,,44,412.76,227,216,大件家具
+plastic_bag,塑料袋,dropped_items,遗撒物/杂物,OOD,,7,31.68,11,13,尺寸过小，不足以构成可检测立体目标
+refrigerator,冰箱,dropped_items,遗撒物/杂物,OOD,,28,84.43,134,201,家电，nuScenes 无对应税则
+sink,水槽,dropped_items,遗撒物/杂物,OOD,,7,44.47,33,52,卫浴件
+sofa,沙发,dropped_items,遗撒物/杂物,OOD,,45,446.66,135,206,大件家具
+table,桌子,dropped_items,遗撒物/杂物,OOD,,30,41.22,74,71,大件家具
+toilet,马桶,dropped_items,遗撒物/杂物,OOD,,21,44.16,83,55,卫浴件
+awning,遮阳篷,road_facilities,道路设施,OOD,,26,86.68,363,169,路边固定设施，nuScenes 不标注静态路面附属物
+bench,长凳,road_facilities,道路设施,OOD,,49,190.41,98,139,路边固定设施，非交通参与者
+billboard,广告牌,road_facilities,道路设施,OOD,,22,154.11,61,70,固定广告牌，nuScenes 不标注
+chair,椅子,road_facilities,道路设施,OOD,,80,268.73,129,226,家具类固定物
+fire_alarm,火警报警器,road_facilities,道路设施,OOD,,9,12.74,25,34,建筑附属，尺寸过小
+fire_extinguisher,灭火器,road_facilities,道路设施,OOD,,83,275.96,221,362,建筑附属，尺寸过小
+fireplug,消防栓,road_facilities,道路设施,OOD,,93,636.25,141,308,消防栓：KITTI-OoD 常见，但 nuScenes 无此税则
+flagpole,旗杆,road_facilities,道路设施,OOD,,21,204.59,65,76,杆状固定设施
+garbage,垃圾/垃圾袋,road_facilities,道路设施,OOD,,29,136.78,75,146,散落垃圾，尺寸远小于 debris 的下限
+lamppost,路灯,road_facilities,道路设施,OOD,,54,139.2,216,257,杆状固定设施（nuScenes 只标可移动物/车/人）
+mail_slot,信箱,road_facilities,道路设施,OOD,,17,110.84,43,58,建筑附属，尺寸过小
+mailbox_(at_home),家用邮箱,road_facilities,道路设施,OOD,,25,203.26,41,74,私人信箱，尺寸过小
+manhole,下水道井盖,road_facilities,道路设施,OOD,,82,1000.24,127,172,嵌于路面，无法作为独立立体目标注入
+milestone,里程碑,road_facilities,道路设施,OOD,,19,221.83,25,31,路侧小构件
+newsstand,报摊,road_facilities,道路设施,OOD,,38,353.68,410,278,固定售卖亭
+parking_meter,停车计时器,road_facilities,道路设施,OOD,,15,45.05,62,63,路侧小构件
+pole,杆,road_facilities,道路设施,OOD,,38,123.58,319,233,杆状固定设施
+postbox_(public),邮箱（公共）,road_facilities,道路设施,OOD,,32,149.79,47,73,公共邮筒，nuScenes 不标注
+signboard,标牌,road_facilities,道路设施,OOD,,49,329.61,268,168,店招/标牌，非交通标志
+silo,筒仓,road_facilities,道路设施,OOD,,16,166.4,144,36,工业建筑体
+stop_sign,停车标志,road_facilities,道路设施,OOD,,29,80.44,92,98,停车标志：KITTI-OoD 高频，nuScenes 明确不标交通标志
+street_sign,街道标志,road_facilities,道路设施,OOD,,36,134.82,102,133,路牌，nuScenes 不标注
+streetlight,路灯,road_facilities,道路设施,OOD,,22,60.75,172,93,杆状固定设施
+telephone_booth,电话亭,road_facilities,道路设施,OOD,,47,286.69,315,263,固定亭体
+telephone_pole,电话杆,road_facilities,道路设施,OOD,,23,121.88,152,170,杆状固定设施
+traffic_light,交通信号灯,road_facilities,道路设施,OOD,,41,142.06,327,215,信号灯：nuScenes 不标注（依赖地图/先验）
+vending_machine,自动售货机,road_facilities,道路设施,OOD,,64,272.64,407,345,固定设备
+water_tower,水塔,road_facilities,道路设施,OOD,,15,157.13,108,71,工业建筑体

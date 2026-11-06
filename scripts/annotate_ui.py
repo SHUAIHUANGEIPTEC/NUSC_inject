@@ -679,8 +679,10 @@ $('cv').addEventListener('pointerup', async ev => {
 
 // --------------------------------------------------------- palette drop
 function buildPalette(m) {
+  // loading="lazy": assets/models/ 可能有几千个模型（公路 OoD 批量下载，
+  // 被 assets/models/.gitignore 忽略）， eager 加载会让首屏请求几千张缩略图。
   $('thumbs').innerHTML = m.models.map(p =>
-    `<img class="thumb" draggable="true" data-model="${p}" alt="${p}" title="${p}" ` +
+    `<img class="thumb" loading="lazy" draggable="true" data-model="${p}" alt="${p}" title="${p}" ` +
     `src="/api/thumb?model=${encodeURIComponent(p)}">`).join('');
   $('cats').innerHTML = m.categories.map(c =>
     `<span class="chip" draggable="true" data-category="${c}">${c}</span>`).join('');

@@ -1,0 +1,5 @@
+uid,group,lvis_class,name,status,est_MB,path
+b56b81331886482a9da2126d2d9e1125,atypical_actors,bicycle,Mountain- Bicycle,skipped,0.61,glbs/000-000/b56b81331886482a9da2126d2d9e1125.glb
+222ce23bad174017a05b97e5a88abbac,animals,rhinoceros,Dirt Rhino,skipped,5.56,glbs/000-092/222ce23bad174017a05b97e5a88abbac.glb
+6d24a8da0d684ee5a00f7d71b6fa74ca,animals,rhinoceros,White Rhino,skipped,5.56,glbs/000-103/6d24a8da0d684ee5a00f7d71b6fa74ca.glb
+326bfbdf5b58492798ac3118cef6c2b8,animals,cat,Sleeping cat,skipped,7.04,glbs/000-051/326bfbdf5b58492798ac3118cef6c2b8.glb
