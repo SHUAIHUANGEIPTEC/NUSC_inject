@@ -61,4 +61,10 @@ def load_config(path, root) -> dict:
     model = cfg.get("model")
     if model and model.get("path"):
         model["path"] = _abs(model["path"], root)
+
+    # Remember the repo root so writers can emit ROOT-RELATIVE paths into
+    # deliverables (specs.json / gt.json) — a machine-specific absolute path
+    # in the shipped dataset is useless on any other machine. Runtime still
+    # uses the absolute form above (Blender and trimesh open by path).
+    cfg["_root"] = str(root)
     return cfg

@@ -125,7 +125,12 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
              lr["num_obj_kept_per_object"])
 
     with open(out_dir / "gt.json", "w") as f:
-        json.dump(gts if len(gts) > 1 else gts[0], f, indent=2)
+        # root-relative model_path: run artefacts must not carry machine paths
+        # either. gts themselves stay absolute (mesh_cache keys, Blender job).
+        root = cfg.get("_root")
+        dump = [dict(g, model_path=annotation.rel_path(g["model_path"], root))
+                for g in gts]
+        json.dump(dump if len(dump) > 1 else dump[0], f, indent=2)
 
     # ---- Step 3: camera render (one Blender job) ----
     try:
@@ -243,7 +248,8 @@ def run_sample(cfg, meta, sample_index, objects, out_dir: Path,
         "cam_output_paths": {n: str(comp_dir / f"{n}.jpg") for n in per_cam},
     }
     spec = annotation.build_sample_spec(sample, gts, lr, files,
-                                        track_keys=track_keys)
+                                        track_keys=track_keys,
+                                        root=cfg.get("_root"))
     with open(out_dir / "spec.json", "w") as f:
         json.dump(spec, f, indent=2)
 

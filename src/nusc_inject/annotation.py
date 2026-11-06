@@ -31,9 +31,28 @@ def det_token(*parts) -> str:
     return h.hexdigest()[:32]
 
 
+def rel_path(path, root) -> str:
+    """Repo-relative form of ``path`` when it lives under ``root``, else as-is.
+
+    Deliverables must not carry machine-specific absolute paths; runtime code
+    keeps the absolute form (config.load_config resolves once for CWD
+    independence).
+    """
+    if not root or not path:
+        return path
+    try:
+        return str(Path(path).relative_to(Path(root)))
+    except ValueError:
+        return path
+
+
 def build_sample_spec(sample, gts, lidar_result, files: dict,
-                      track_keys=None) -> dict:
+                      track_keys=None, root=None) -> dict:
     """Per-sample record consumed by export_dataset (Step-5 pipeline output).
+
+    root: repo root — ``model_path`` is written ROOT-RELATIVE so the shipped
+    specs.json carries no machine-specific absolute path. Runtime code keeps
+    using the absolute form (see config.load_config).
 
     files: {
       "lidar_filename":  original rel path  (e.g. samples/LIDAR_TOP/x.pcd.bin),
@@ -58,7 +77,7 @@ def build_sample_spec(sample, gts, lidar_result, files: dict,
                 "size": gt["size"],
                 "rotation": gt["rotation"],
                 "category": gt["category"],
-                "model_path": gt["model_path"],
+                "model_path": rel_path(gt["model_path"], root),
                 "num_lidar_pts": int(n),
                 "ground_z_lidar": gt["ground_z_lidar"],
                 "track_key": (track_keys[i] if track_keys else None),
