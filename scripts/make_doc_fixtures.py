@@ -64,15 +64,17 @@ def build_fixtures(models: Path, assets: Path) -> dict:
         "fig_temple": _one(temple, 3.0, 0.60, "movable_object.anomaly",
                            (12.0, 0.0), 30.0),
         # fig5 — A/D share a model at two ranges; B and D share a pose so the
-        # only difference is the object itself
-        "cmpA_pedestrian_near": _one(models / "demo_pedestrian.glb", 1.75, 0.70,
-                                    "human.pedestrian.adult", (8.0, 0.0), 0.0),
-        "cmpB_barrier_mid": _one(models / "demo_barrier.glb", 2.20, 0.50,
-                                 "movable_object.barrier", (15.0, -5.0), 75.0),
-        "cmpC_truck_far": _one(models / "demo_truck.glb", 6.00, 0.25,
-                               "vehicle.truck", (28.0, 3.0), 20.0),
-        "cmpD_pedestrian_mid": _one(models / "demo_pedestrian.glb", 1.75, 0.70,
-                                    "human.pedestrian.adult", (15.0, -5.0), 75.0),
+        # only difference is the object itself. Real Objaverse models (not the
+        # synthetic boxes) so the figure shows distinct road categories.
+        "cmpA_cone_near": _one(assets / "traffic_cone_02.glb", 0.70, 0.70,
+                               "movable_object.trafficcone", (8.0, 0.0), 0.0),
+        "cmpB_dumpster_mid": _one(assets / "Detroit_Dumpster.glb", 2.00, 0.50,
+                                  "movable_object.pushable_pullable",
+                                  (15.0, -5.0), 75.0),
+        "cmpC_dog_far": _one(assets / "DOG.glb", 1.20, 0.25,
+                             "animal", (28.0, 3.0), 20.0),
+        "cmpD_cone_mid": _one(assets / "traffic_cone_02.glb", 0.70, 0.70,
+                              "movable_object.trafficcone", (15.0, -5.0), 75.0),
         # fig6 — same mesh, same pose, only the export-time axis handling differs
         "axis_ok": _one(models / "demo_axis_ok.glb", 1.75, 0.70,
                         "human.pedestrian.adult", (9.0, 1.0), 30.0),
@@ -83,8 +85,8 @@ def build_fixtures(models: Path, assets: Path) -> dict:
         "fig_two_final": {"objects": [
             {"model_cfg": _model(temple, 3.0, 0.60, "vehicle.car"),
              "placement_cfg": _place((13.0, -2.5), 25.0)},
-            {"model_cfg": _model(models / "demo_barrier.glb", 2.20, 0.50,
-                                 "movable_object.barrier"),
+            {"model_cfg": _model(assets / "Trashcan_Low.glb", 1.20, 0.50,
+                                 "movable_object.pushable_pullable"),
              "placement_cfg": _place((9.5, 2.2), 85.0)},
         ]},
     }
@@ -135,10 +137,10 @@ def main():
     print("  python scripts/make_doc_figs.py \\")
     print("    --single data/outputs/p0/fig_temple \\")
     print("    --two    data/outputs/p0/fig_two_final \\")
-    for key, label in (("cmpA_pedestrian_near", "A 行人 · 8 m · 居中 · 0°"),
-                       ("cmpB_barrier_mid", "B 护栏 · 15 m · 左偏 5 m · 75°"),
-                       ("cmpC_truck_far", "C 卡车 · 28 m · 右偏 3 m · 20°"),
-                       ("cmpD_pedestrian_mid", "D 行人 · 15 m · 左偏 5 m · 75°")):
+    for key, label in (("cmpA_cone_near", "A 交通锥 · 8 m · 居中 · 0°"),
+                       ("cmpB_dumpster_mid", "B 垃圾箱 · 15 m · 左偏 5 m · 75°"),
+                       ("cmpC_dog_far", "C 狗 · 28 m · 右偏 3 m · 20°"),
+                       ("cmpD_cone_mid", "D 交通锥 · 15 m · 左偏 5 m · 75°")):
         print(f'    --compare "{label}=data/outputs/p0/{key}" \\')
     print("    --axis   data/outputs/p0/axis_ok data/outputs/p0/axis_bad")
 

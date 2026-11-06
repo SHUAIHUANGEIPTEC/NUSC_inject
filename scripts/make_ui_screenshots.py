@@ -174,20 +174,26 @@ def main():
 
         d.shot(OUT / "ui_overview.png")       # 首屏：素材面板 + 画布 + 控件
 
-        # 拖皮卡缩略图到路面 -> 插入第 1 个目标（1040,600 是实测地面估计准的点）
-        d.js(DROPOnto, [".thumb[data-model='assets/models/temple.glb']", 1040, 600])
-        wait_n(d, 1, "pickup inserted")
+        # 拖交通锥到路面 -> 插入第 1 个目标（1040,600 是实测地面估计准的点）
+        d.js(DROPOnto, [".thumb[data-model='assets/models/traffic_cone_02.glb']", 1040, 600])
+        wait_n(d, 1, "cone inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_insert.png")
 
-        # 再拖一个护栏 -> 多目标
-        d.js(DROPOnto, [".thumb[data-model='data/models/demo_barrier.glb']", 760, 640])
-        wait_n(d, 2, "barrier inserted")
+        # 再拖一只狗 -> 两个不同类别的目标
+        d.js(DROPOnto, [".thumb[data-model='assets/models/DOG.glb']", 760, 640])
+        wait_n(d, 2, "dog inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_two.png")
 
-        # 移动模式：把护栏拖到右边（抓取偏移：车头不跳到车身中心）
-        cu, cv = centroid(d, 1, "barrier")
+        # 第三个：垃圾桶 —— 三个不同类别同框（README 用这张）
+        d.js(DROPOnto, [".thumb[data-model='assets/models/Trashcan_Low.glb']", 900, 665])
+        wait_n(d, 3, "trashcan inserted")
+        time.sleep(0.8)
+        d.shot(OUT / "ui_three.png")
+
+        # 移动模式：把狗拖到右边（抓取偏移：抓住哪点就跟着哪点）
+        cu, cv = centroid(d, 1, "dog")
         d.js(PEV, ["pointerdown", cu, cv, False])
         for x in range(int(cu) + 40, int(cu) + 221, 45):
             d.js(PEV, ["pointermove", x, cv - 10, False])
@@ -197,7 +203,7 @@ def main():
         d.shot(OUT / "ui_move.png")
 
         # 旋转模式：拖 X 改偏航，Shift+拖 改滚转
-        cu, cv = centroid(d, 1, "barrier")
+        cu, cv = centroid(d, 1, "dog")
         d.js("document.getElementById('modeRotate').click(); return true;")
         time.sleep(0.2)
         d.js(PEV, ["pointerdown", cu, cv, False])

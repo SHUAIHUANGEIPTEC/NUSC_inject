@@ -68,16 +68,18 @@
 
 ![批量双目标](figs/fig3_batch_two_objects.jpg)
 
-**图 3 · 同帧 2 目标、不同类目**（两个黄框各配放大内嵌）：蓝色皮卡（`vehicle.car`，`size=[3.00, 1.34, 1.12]`）
-与橙色护栏（`movable_object.barrier`，`size=[0.40, 2.20, 1.00]`）共用同一套 z-buffer
-与一次 Blender job，各自带独立类目落库。
+**图 3 · 同帧 2 目标、不同类目**（两个黄框各配放大内嵌）：蓝色皮卡（`vehicle.car`，
+`size=[3.00, 1.34, 1.12]`，`assets/models/temple.glb`）与垃圾桶
+（`movable_object.pushable_pullable`，`size=[0.89, 0.89, 1.20]`，`Trashcan_Low.glb`）
+共用同一套 z-buffer 与一次 Blender job，各自带独立类目落库。
+两者都只被 `CAM_FRONT` 看到（垃圾桶在 ego 左偏 13°，够不到左相机 +20° 的视锥边缘）。
 
-| 校验项 | CAM_FRONT | CAM_FRONT_LEFT |
-|---|---|---|
-| 点投影 ⊂ α 覆盖率 | 0.998 | 1.000 |
-| 3D 框投影 IoU | 0.960 | 0.700（触边豁免） |
-| 被遮挡像素 / 无理由遮挡 | 2274 / **0** | 0 / **0** |
-| `num_lidar_pts` | 3670 | 5977 |
+| 校验项 | CAM_FRONT |
+|---|---|
+| 点投影 ⊂ α 覆盖率 | 0.996 |
+| 3D 框投影 IoU | 0.904 |
+| 被遮挡像素 / 无理由遮挡 | 610 / **0** |
+| `num_lidar_pts` | 3670（皮卡）/ 2657（垃圾桶） |
 
 批量放置可复现：`np.random.default_rng([seed, sample_index])`。
 
@@ -91,11 +93,15 @@
 
 ![四组效果对比](figs/fig5_case_comparison.jpg)
 
-**图 5**：同一帧上分别注入 4 个目标。A 与 D 用同一模型、只改距离（8 m / 15 m），
-隔离出距离的影响；B 与 D 同位置同朝向、只换模型与类目，隔离出目标本身的影响；
-C 的 6 m 卡车被前方真实车辆挡住 **77.5%** 的目标像素（放大框里只剩贴着真实卡车的窄条）。
+**图 5**：同一帧上分别注入 4 个目标，用的是 `assets/models/` 里的**真实模型**、
+覆盖三个不同类目——A/D 交通锥（`movable_object.trafficcone`）、B 垃圾箱
+（`movable_object.pushable_pullable`）、C 狗（`animal`）。
+A 与 D 用同一模型、只改距离（8 m / 15 m），隔离出距离的影响；
+B 与 D 同位置同朝向、只换模型与类目，隔离出目标本身的影响；
+C 的狗在 28 m 处被前方真实车辆挡住 **75.7%** 的目标像素（放大框里只剩窄条）。
 
-点云强度严格跟随 `albedo`：A/D (0.70) → 137 / 139，B (0.50) → 96，C (0.25) → 49。
+点云**峰强**跟随 `albedo`：A/D (0.70) → 140 / 140，B (0.50) → 100，C (0.25) → 46
+（正好是 `k·ρ` = 200 × ρ；均强因三组形状朝向不同而不可比）。
 完整数据与结论见 [`docs/measurements.md`](../measurements.md) 的 M10。
 
 ---

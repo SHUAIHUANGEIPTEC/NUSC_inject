@@ -72,8 +72,8 @@ data/
 `assets/` 是入库的输入资产，`data/` 全部是运行期数据、不进版本控制、克隆后并不存在。
 每个子目录的内容、产生者、体积构成与清理方式见 **[`docs/data-layout.md`](docs/data-layout.md)**。
 
-`assets/models/` 自带 12 个可注入模型（交通锥、水泥护栏、垃圾桶、垃圾箱、停车牌、
-路牌、电线杆、邮筒、邮箱、猫、狗，以及皮卡 `temple.glb`），许可与来源见
+`assets/models/` 自带 12 个可注入模型（交通锥、垃圾桶、垃圾箱、停车牌、路牌、
+电线杆、邮筒、邮箱、猫、狗、护栏类，以及皮卡 `temple.glb`），许可与来源见
 **[`assets/models/README.md`](assets/models/README.md)**。要加自己的模型就丢进该目录，
 再改 `configs/*.yaml` 的 `model.path`（单目标）或 `models[].path`（批量模型池）。
 支持 `.glb / .gltf / .obj / .fbx / .ply`（glTF 的 Y-up 会按 Blender 导入规则自动换算，
@@ -120,9 +120,10 @@ python scripts/run_batch.py --config configs/batch.yaml --skip-export   # 只注
 python scripts/annotate_ui.py --open    # -> http://127.0.0.1:8765
 ```
 
-![放置 UI：拖缩略图插入目标](docs/summary/figs/ui_insert.png)
+![放置 UI：三个类别同框](docs/summary/figs/ui_three.png)
 
-*左侧素材面板把模型缩略图**拖进画布**即插入目标（黄线框），右侧控件绑定当前目标。*
+*左侧素材面板把模型缩略图**拖进画布**即插入目标（黄线框）——这里是交通锥、狗、*
+*垃圾桶三个不同类别的真实模型，各自独立位姿，一次渲染全部。右侧控件绑定当前目标。*
 *「时间帧」一栏的 `◀ ▶` 逐帧翻 nuScenes 关键帧，下拉里是「场景 · 时刻」的全部 404 帧。*
 
 在相机图上**直接操纵**：拖缩略图或类目 chip 进画布插入目标（拖几个就是几个，多目标一次
