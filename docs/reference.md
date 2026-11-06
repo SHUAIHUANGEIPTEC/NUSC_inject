@@ -268,8 +268,19 @@ python scripts/run_p0.py --config configs/p0.yaml --run-id my_object
 `data/` 下**全部是运行期数据**，不进版本控制（`.gitignore` 已排除）。克隆仓库后该目录不存在：
 要么按 §1 自行准备输入，要么由管线生成。
 
-> **入库的输入模型在 [`assets/models/`](../assets/models/README.md)**（12 个 `.glb`，约 38 MB，
-> 含许可说明），不在 `data/` 里。`data/models/` 只剩生成物（演示盒子、轴向对照模型）。
+> **入库的输入模型在 [`assets/models/`](../assets/models/README.md)**（12 个精选 `.glb`，
+> 约 38 MB，含逐个许可说明），不在 `data/` 里。`data/models/` 只剩生成物
+> （演示盒子、轴向对照模型）。
+>
+> 同一目录下还有一次**公路 OoD 批量下载**：`scripts/download_road_ood.py` 从 Objaverse
+> 拉了约 3400 个带 PBR 贴图的模型（18 GB），平铺在 `assets/models/`。
+> 它们按命名模式 `*_????????.glb`（类目名_序号_8 位哈希）被 `assets/models/.gitignore`
+> 忽略、**不入库**；清单与类目文档在 [`assets/models/road_ood_docum/`](../assets/models/road_ood_docum/)：
+> `road_ood_manifest.csv`（逐文件：类目/许可/作者/材质/贴图数/体积）、
+> `road_ood_class_map.csv` 与 `road_ood_OOD_CLASSES.md`（`scripts/classify_id_ood.py`
+> 把 108 个 LVIS 类目分成 ID-CORE / ID-TAIL / OOD 三档）、
+> `road_ood_asset_tags.csv`（逐文件的 ID/OOD 标签，单一事实来源）。
+> 想缩小体积直接删这些批量 `.glb` 即可——它们是可重下载的产物，精选的 12 个不受影响。
 
 本机当前状态（供参照，数字会随运行增减）：
 

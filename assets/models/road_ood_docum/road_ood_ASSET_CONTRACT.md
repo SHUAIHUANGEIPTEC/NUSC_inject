@@ -50,7 +50,7 @@ ID 与 OOD **不分区存放** —— 混放是有意的，靠 §4 的标签区�
 
 判定锚点是本机可核对的两份权威数据，不靠记忆：
 
-- `/home/shuai/dataset/yiming_ODD/nuScenes/v1.0-mini/category.json` —— **23 类**完整类别体系
+- nuScenes 的 `v1.0-mini/category.json`（即 `data/nuscenes/v1.0-mini/category.json`）—— **23 类**完整类别体系
 - devkit `nuscenes/eval/detection/constants.py` 的 `DETECTION_NAMES` —— **10 类**评测类别
   （car / truck / bus / trailer / construction_vehicle / pedestrian / motorcycle /
    bicycle / traffic_cone / barrier），即「常用目标」的客观操作定义

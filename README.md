@@ -175,7 +175,7 @@ v1.0-mini 全量轨迹注入（10 scene，`seed=42`，`configs/batch.yaml`，82 
 
 ![点云叠加与 BEV](docs/summary/figs/fig2_overlay_bev.jpg)
 
-**不同位置 / 类目 / 材质的效果**——四个真实模型（交通锥 / 垃圾箱 / 狗）在同帧注入，
+**不同位置 / 类目 / 材质的效果**——三个真实模型（交通锥 / 垃圾箱 / 狗）跑四组用例，
 A 与 D 同模型改距离、B 与 D 同位置换模型：
 
 ![四组效果对比](docs/summary/figs/fig5_case_comparison.jpg)
@@ -241,7 +241,8 @@ src/nusc_inject/               # 见下表
 | `setup_blender.sh` | 下载 Blender 3.6.23 到 `tools/` |
 | `run_p0.py` / `run_batch.py` | 单样本验证 / 批量注入 + 落库 + 导出 |
 | `annotate_ui.py` | 交互式放置 UI |
-| `download_models.py` / `download_road_ood.py` | 从 Objaverse 拉模型（按 uid / 按公路 OoD 类目） |
+| `download_models.py` / `download_road_ood.py` | 从 Objaverse 拉模型（按 uid / 按公路 OoD 类目批量） |
+| `classify_id_ood.py` | 把批量模型的 LVIS 类目分成 ID-CORE / ID-TAIL / OOD |
 | `make_demo_models.py` | 生成演示盒子（`data/models/demo_*.glb`） |
 | `make_doc_fixtures.py` / `make_doc_figs.py` | 重建文档出图素材 / 重出图 1–6 |
 | `make_ui_screenshots.py` | 重出 UI 截图（兼作 UI 端到端冒烟测试） |
