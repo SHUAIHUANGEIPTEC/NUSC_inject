@@ -141,7 +141,7 @@ def test_euler_rotation_is_orthonormal():
 def test_euler_pitch_tips_the_top_forward():
     """In a z-up frame with +x forward, +pitch about +Y tips +Z (up) toward
     +X (forward) and the nose (+x) toward -Z (down). Right-hand rule; see
-    docs/model-input.md for the user-facing sign convention."""
+    docs/reference.md for the user-facing sign convention."""
     R = tf.euler_to_rot(0.0, math.radians(90.0), 0.0)
     assert np.allclose(R @ np.array([0.0, 0.0, 1.0]), [1.0, 0.0, 0.0], atol=1e-9)
     assert np.allclose(R @ np.array([1.0, 0.0, 0.0]), [0.0, 0.0, -1.0], atol=1e-9)

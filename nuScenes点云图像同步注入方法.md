@@ -48,7 +48,7 @@
 2. **几何一致性**：LiDAR 里目标出现的方位/距离/尺寸，必须与相机图像里渲染出的目标**逐像素级对齐**，靠同一套外参（`calibrated_sensor`）保证。
 3. **光学近似**：点云强度按 Lambertian 模型从标量反照率 `albedo` 推导；
    图像外观则由模型文件自带的 PBR 材质经 Cycles 渲染。两者**不是同一个来源**，
-   亮度需要人工对齐（见 [`docs/model-input.md`](docs/model-input.md)）。
+   亮度需要人工对齐（见 [`docs/reference.md`](docs/reference.md)）。
 
 ---
 
@@ -188,7 +188,7 @@ T_model2global = T_ego2global · T_lidar2ego · T_model2lidar
 | **LiDAR 稀疏性**（远/小目标点太少） | 表面采样密度可控（`n_dense`）；仍过小则接受"α<500px 擦边相机跳过"，`num_lidar_pts` 如实记录 |
 | **遮挡一致性**（点云被挡、图像却贴了） | 两通道共用**同一份场景几何**：LiDAR 稀疏点（角度膨胀填扫描线空洞）+ `sample_annotation` 框面稠密遮挡体（`occluders.py`），同时进 range-image 与图像深度缓冲；Step 6 校验**每个被遮挡像素必须有更近的场景几何**（`occlusion_justified`），无理由遮挡即判失败 |
 | **场景点被误删** | 双向遮挡：只删"被更近物体挡住的场景点"，场景点之间不去重（无物体时 34688/34688 全保） |
-| **强度 vs 亮度域不匹配** | 点云强度由标量 `albedo` 经 Lambertian 推导，图像外观由模型自带 PBR 材质经 Cycles 渲染——**两个独立来源**，不自动一致。按 `docs/model-input.md` 的说明人工对齐 `albedo` |
+| **强度 vs 亮度域不匹配** | 点云强度由标量 `albedo` 经 Lambertian 推导，图像外观由模型自带 PBR 材质经 Cycles 渲染——**两个独立来源**，不自动一致。按 `docs/reference.md` 的说明人工对齐 `albedo` |
 | **6 相机拼接缝** | 每路相机独立用其外参 + `ego_pose` 渲染合成，不做跨相机插值 |
 | **模型坐标系漂移**（glTF Y-up vs Blender Z-up） | `mesh_points.py` 统一 `(x,-z,y)` 转换 + 运行时 bbox 对账 >1mm 即 fail |
 | **边缘目标 IoU 结构性偏低** | 掩码触边时 bbox-IoU 豁免（覆盖率仍为硬约束）；α<500px 相机整体跳过 |
