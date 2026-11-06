@@ -98,9 +98,9 @@
 （`movable_object.pushable_pullable`）、C 狗（`animal`）。
 A 与 D 用同一模型、只改距离（8 m / 15 m），隔离出距离的影响；
 B 与 D 同位置同朝向、只换模型与类目，隔离出目标本身的影响；
-C 的狗在 28 m 处被前方真实车辆挡住 **75.7%** 的目标像素（放大框里只剩窄条）。
+C 的狗在 28 m 处被前方真实车辆挡住 **61.6%** 的目标像素（放大框里只剩窄条）。
 
-点云**峰强**跟随 `albedo`：A/D (0.70) → 140 / 140，B (0.50) → 100，C (0.25) → 46
+点云**峰强**跟随 `albedo`：A/D (0.70) → 140 / 140，B (0.50) → 100，C (0.25) → 48
 （正好是 `k·ρ` = 200 × ρ；均强因三组形状朝向不同而不可比）。
 完整数据与结论见 [`docs/measurements.md`](../measurements.md) 的 M10。
 
@@ -213,7 +213,7 @@ python scripts/run_batch.py --config configs/batch.yaml --export-only
 **工具**
 - ✅ 交互式放置 UI（`scripts/annotate_ui.py`）：点选路面 → 线框预览 → 拖偏航/俯仰/滚转 →
   后台渲染真管线。零新增依赖，预览与渲染共用 `anchor.build_gt`。
-  使用明细与界面截图见 [`docs/placement-ui.md`](../placement-ui.md)。
+  使用明细与界面截图见 [`docs/reference.md`](../reference.md) 第三部分。
 - ✅ 文档配图与出图素材可复现：`make_doc_figs.py` / `make_doc_fixtures.py` / `make_ui_screenshots.py`
 
 **后续（超出当前范围）**

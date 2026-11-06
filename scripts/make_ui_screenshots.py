@@ -125,10 +125,21 @@ cv.dispatchEvent(new DragEvent('dragover',ev));
 cv.dispatchEvent(new DragEvent('drop',ev));
 return true;"""
 
+# 静默设置右侧「最长边」：新目标继承这个值，不设的话三个目标全被放大到
+# 默认的 3 m（框巨大、不像路障）。不派发 change，免得改到已选中的目标。
+SET_DIM = """document.getElementById('dim').value=arguments[0]; return true;"""
+
 READY = "return document.getElementById('cv').width > 100 && " \
         "document.querySelectorAll('#thumbs .thumb').length > 0;"
-THUMBS = "return [...document.querySelectorAll('#thumbs .thumb')]" \
-         ".every(i => i.complete && i.naturalWidth > 0);"
+# Only the elements this script drags must EXIST. assets/models/ can hold
+# thousands of models (the gitignored road-Ood bulk), and the palette marks
+# thumbs loading="lazy", so a loaded-image wait would either crawl (thousands
+# of Blender renders) or never finish (off-screen thumbs never load).
+# dragstart only reads data-model, so existence is enough.
+THUMBS = """const need = ['assets/models/traffic_cone_02.glb',
+              'assets/models/Dog.glb', 'assets/models/Trashcan_Low.glb'];
+return need.every(p =>
+  !!document.querySelector('#thumbs .thumb[data-model="' + p + '"]'));"""
 
 # centroid of one object's projected box — the place a user actually clicks.
 # Clicking the drop point itself is unreliable: that pixel is the bbox-min
@@ -175,30 +186,35 @@ def main():
         d.shot(OUT / "ui_overview.png")       # 首屏：素材面板 + 画布 + 控件
 
         # 拖交通锥到路面 -> 插入第 1 个目标（1040,600 是实测地面估计准的点）
+        d.js(SET_DIM, [0.7])
         d.js(DROPOnto, [".thumb[data-model='assets/models/traffic_cone_02.glb']", 1040, 600])
         wait_n(d, 1, "cone inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_insert.png")
 
         # 再拖一只狗 -> 两个不同类别的目标
-        d.js(DROPOnto, [".thumb[data-model='assets/models/DOG.glb']", 760, 640])
+        d.js(SET_DIM, [1.2])
+        d.js(DROPOnto, [".thumb[data-model='assets/models/Dog.glb']", 760, 640])
         wait_n(d, 2, "dog inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_two.png")
 
         # 第三个：垃圾桶 —— 三个不同类别同框（README 用这张）
+        d.js(SET_DIM, [1.2])
         d.js(DROPOnto, [".thumb[data-model='assets/models/Trashcan_Low.glb']", 900, 665])
         wait_n(d, 3, "trashcan inserted")
         time.sleep(0.8)
         d.shot(OUT / "ui_three.png")
 
-        # 移动模式：把狗拖到右边（抓取偏移：抓住哪点就跟着哪点）
+        # 移动模式：把狗往**左**拖（抓取偏移：抓住哪点就跟着哪点）。
+        # 别往右拖——右边 300 px 处就是交通锥，拖过去两个框会叠在一起，
+        # 后面「点交通锥选中」就会命中狗。
         cu, cv = centroid(d, 1, "dog")
         d.js(PEV, ["pointerdown", cu, cv, False])
-        for x in range(int(cu) + 40, int(cu) + 221, 45):
+        for x in range(int(cu) - 40, int(cu) - 121, -40):
             d.js(PEV, ["pointermove", x, cv - 10, False])
             time.sleep(0.25)
-        d.js(PEV, ["pointerup", cu + 180, cv - 10, False])
+        d.js(PEV, ["pointerup", cu - 110, cv - 10, False])
         time.sleep(0.8)
         d.shot(OUT / "ui_move.png")
 
@@ -207,24 +223,24 @@ def main():
         d.js("document.getElementById('modeRotate').click(); return true;")
         time.sleep(0.2)
         d.js(PEV, ["pointerdown", cu, cv, False])
-        for x in range(int(cu) + 20, int(cu) + 111, 30):
+        for x in range(int(cu) - 20, int(cu) - 111, -30):
             d.js(PEV, ["pointermove", x, cv, False])
             time.sleep(0.2)
-        d.js(PEV, ["pointerup", cu + 110, cv, False])
-        d.js(PEV, ["pointerdown", cu + 110, cv, True])
-        for x in range(int(cu) + 90, int(cu) - 1, -30):
+        d.js(PEV, ["pointerup", cu - 110, cv, False])
+        d.js(PEV, ["pointerdown", cu - 110, cv, True])
+        for x in range(int(cu) - 90, int(cu) + 1, 30):
             d.js(PEV, ["pointermove", x, cv, True])
             time.sleep(0.2)
-        d.js(PEV, ["pointerup", cu - 20, cv, True])
+        d.js(PEV, ["pointerup", cu + 20, cv, True])
         time.sleep(0.8)
         d.shot(OUT / "ui_rotate.png")
 
         # 点皮卡线框 -> 选中（命中测试 = 8 个投影角点取凸包）
-        cu, cv = centroid(d, 0, "pickup")
+        cu, cv = centroid(d, 0, "cone")
         d.js(PEV, ["pointerdown", cu, cv, False])
         d.js(PEV, ["pointerup", cu, cv, False])
         d.wait_js("return window.__ui().selected === window.__ui().objects[0].id;",
-                  what="select pickup")
+                  what="select cone")
         time.sleep(0.6)
         d.shot(OUT / "ui_select.png")
 

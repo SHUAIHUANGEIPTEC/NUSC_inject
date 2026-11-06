@@ -1,0 +1,10 @@
+{
+ "uid": "0964ad0c8f09472f86712a752b98e714",
+ "lvis_class": "dog",
+ "name": "Dog-3D- Model-218674ce",
+ "license": "by",
+ "sketchfab_uri": "https://sketchfab.com/3d-models/0964ad0c8f09472f86712a752b98e714",
+ "path": "glbs/000-029/0964ad0c8f09472f86712a752b98e714.glb",
+ "vertexCount": 10412,
+ "replaced": "DOG.glb (smooth blob, no legs/head; kept out of M10 after review)"
+}

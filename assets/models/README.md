@@ -20,7 +20,7 @@
 | `British_Postbox.glb` | 1.93 MB | `postbox_(public)` | CC-BY 4.0 | British Postbox |
 | `Dutch_postal_services_Mailbox.glb` | 7.15 MB | `mailbox_(at_home)` | CC-BY 4.0 | Dutch postal services Mailbox |
 | `Cat.glb` | 0.53 MB | `cat` | CC-BY 4.0 | Cat |
-| `DOG.glb` | 1.47 MB | `dog` | CC-BY 4.0 | DOG |
+| `Dog.glb` | 0.70 MB | `dog` | CC-BY 4.0 | Dog-3D- Model-218674ce |
 | `temple.glb` | 0.28 MB | — | **unknown** | temple.glb（见下） |
 
 前 11 个来自 **Objaverse v1**（Sketchfab 资产），逐个从
@@ -73,3 +73,21 @@ python scripts/download_models.py --uids <uid1> <uid2> --out assets/models
 
 `--uids` 需要 Objaverse 的 uid（可从 LVIS 类目清单筛，见
 `scripts/download_models.py` 的 `--uid-file` 用法）。
+
+## 目录约定：资产统一平铺，文档约束语义
+
+所有资产（`*.glb` + 同名 sidecar `*.json`）**统一平铺在本层**，不建 ID/OOD 子目录 ——
+目录结构不表达任何语义。一个文件算不算资产、算不算 OOD，由文档说了算：
+
+- **`road_ood_docum/road_ood_ASSET_CONTRACT.md`** —— 资产契约：合法资产的定义、
+  OOD 判定依据、单一事实来源、新增资产流程、git 边界。**先读这份**。
+- `road_ood_docum/road_ood_asset_tags.csv` —— 逐文件 ID/OOD 标签（3,498 行），
+  `is_ood` 是判断某个资产是否 OOD 的**唯一依据**。
+- `road_ood_docum/road_ood_class_map.csv` —— 108 个 LVIS 类目的三档判定与理由。
+- `road_ood_docum/road_ood_MANIFEST.md` / `road_ood_manifest.csv` —— 下载清单。
+- `road_ood_docum/road_ood_OOD_CLASSES.md`、`road_ood_skipped.csv`、
+  `road_ood_candidates.json` —— 可读版判定、失败明细、候选 uid。
+
+两个脚本都按这个约定写：`download_road_ood.py` 把 glb 下到本层、清单固定写进
+`road_ood_docum/`；`classify_id_ood.py` 从本层扫描全部 glb 并刷新判定表。
+修改判定口径后跑 `python scripts/classify_id_ood.py` 即可重新生成。

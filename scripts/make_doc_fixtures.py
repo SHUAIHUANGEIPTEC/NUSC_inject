@@ -71,7 +71,7 @@ def build_fixtures(models: Path, assets: Path) -> dict:
         "cmpB_dumpster_mid": _one(assets / "Detroit_Dumpster.glb", 2.00, 0.50,
                                   "movable_object.pushable_pullable",
                                   (15.0, -5.0), 75.0),
-        "cmpC_dog_far": _one(assets / "DOG.glb", 1.20, 0.25,
+        "cmpC_dog_far": _one(assets / "Dog.glb", 1.20, 0.25,
                              "animal", (28.0, 3.0), 20.0),
         "cmpD_cone_mid": _one(assets / "traffic_cone_02.glb", 0.70, 0.70,
                               "movable_object.trafficcone", (15.0, -5.0), 75.0),
