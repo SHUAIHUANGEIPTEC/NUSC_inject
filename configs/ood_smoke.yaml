@@ -1,0 +1,20 @@
+# ood_nuscenes 冒烟：单 scene 验证 GPU 渲染 / OOD 池 / 校验 / 导出链路。
+# 通过后用 configs/ood_nuscenes.yaml 跑全量（本文件仅差异项）。
+extends: ood_nuscenes.yaml
+
+run_id: ood_smoke
+
+dataset:
+  scenes: [scene-0061]
+
+objects:
+  # 冒烟要看到「不被遮挡的注入」：贴近、偏右前方放置，避开 ego 正前跟车
+  forward_range_m: [8.0, 18.0]
+  lateral_range_m: [2.0, 6.0]
+  tracking:
+    forward_range_m: [8.0, 18.0]
+    length: [5, 8]
+
+validation:
+  min_visible_px: 1        # 被完全挡住的 OOD 目标不绘制/不标注
+  min_obj_camera_dist_m: 4.0

@@ -1,0 +1,5 @@
+# 沙发（严格 OOD）动图注入
+extends: ood_gif_base.yaml
+run_id: gif_sofa
+models_from:
+  filter: { lvis_class: sofa }

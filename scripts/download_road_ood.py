@@ -251,6 +251,58 @@ def download_one(r, out_dir: Path, seq: int):
             "materials": st["materials"], "textures": st["textures"]}
 
 
+def build_rows_from_sidecars(out_dir: Path) -> tuple[list, list]:
+    """Offline rebuild: derive manifest rows from flat .glb + sidecar .json.
+
+    The manifest normally lands after a (network) download pass; when the
+    assets are already on disk the sidecars carry every field write_manifest
+    needs, so the doc directory can be regenerated with no network at all.
+    Assets whose sidecar group is not in GROUPS (the hand-picked legacy
+    models) or whose sidecar is missing are reported as skipped rows.
+    """
+    ok_rows, skip_rows = [], []
+    for glb in sorted(out_dir.glob("*.glb")):
+        side = glb.with_suffix(".json")
+        if not side.exists():
+            skip_rows.append({"uid": "", "group": "", "lvis_class": "",
+                              "name": glb.name, "status": "no_sidecar",
+                              "estRealMB": glb.stat().st_size / 1e6,
+                              "path": ""})
+            continue
+        try:
+            d = json.loads(side.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            skip_rows.append({"uid": "", "group": "", "lvis_class": "",
+                              "name": glb.name, "status": "bad_sidecar",
+                              "estRealMB": glb.stat().st_size / 1e6,
+                              "path": ""})
+            continue
+        group = d.get("group")
+        if group not in GROUPS:
+            skip_rows.append({"uid": d.get("uid", ""), "group": group or "",
+                              "lvis_class": d.get("lvis_class") or "",
+                              "name": d.get("name") or glb.name,
+                              "status": "not_in_groups",
+                              "estRealMB": glb.stat().st_size / 1e6,
+                              "path": ""})
+            continue
+        ok_rows.append({
+            "file": glb.name, "group": group,
+            "lvis_class": d.get("lvis_class") or "",
+            "class_cn": d.get("class_cn") or "",
+            "name": d.get("name") or "", "license": d.get("license") or "",
+            "author": d.get("author") or "", "uid": d.get("uid") or "",
+            "vertexCount": d.get("vertexCount"),
+            "faceCount": d.get("faceCount"),
+            "materials": d.get("materialCount", 0),
+            "textures": d.get("textureCount", 0),
+            "size": glb.stat().st_size,
+            "path": d.get("path") or "",
+            "estRealMB": glb.stat().st_size / 1e6,
+        })
+    return ok_rows, skip_rows
+
+
 def write_manifest(ok_rows, skip_rows, out_dir: Path, groups):
     D = doc_paths(out_dir)
     with open(D["manifest_csv"], "w", newline="", encoding="utf-8") as f:
@@ -319,12 +371,22 @@ def main() -> int:
     ap.add_argument("--max-total-gb", type=float, default=25.0)
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--report-only", action="store_true")
+    ap.add_argument("--from-sidecars", action="store_true",
+                    help="离线：从已下载的 .glb + sidecar 重建 manifest（不联网）")
     args = ap.parse_args()
 
     groups = list(GROUPS) if args.groups == "all" else [g.strip() for g in args.groups.split(",")]
     bad = [g for g in groups if g not in GROUPS]
     if bad:
         sys.exit(f"unknown group(s): {bad}")
+
+    if args.from_sidecars:
+        out_dir = Path(args.out)
+        ok_rows, skip_rows = build_rows_from_sidecars(out_dir)
+        write_manifest(ok_rows, skip_rows, out_dir, groups)
+        print(f"离线重建：{len(ok_rows)} 个入清单，{len(skip_rows)} 个跳过"
+              f"（无 sidecar / 非 GROUPS 类目）")
+        return 0
 
     rows = build_candidates(groups, {x.strip() for x in args.license.split(",") if x.strip()},
                             args.max_mb, args.min_mb)

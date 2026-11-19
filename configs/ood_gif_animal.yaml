@@ -1,0 +1,6 @@
+# 动物（ID-TAIL 灰区口径——严格 OOD 池不含动物类：动物均在 nuScenes animal
+# 税则内但极稀有；此处按 tier=TAIL 过滤 animals 组，注入类目仍 anomaly）
+extends: ood_gif_base.yaml
+run_id: gif_animal
+models_from:
+  filter: { group: animals, tier: ID-TAIL }

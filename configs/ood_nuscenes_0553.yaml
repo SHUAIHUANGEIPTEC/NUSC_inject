@@ -1,0 +1,24 @@
+# scene-0553 补跑：仅该场景，独立 run_id，不覆盖已有 export。
+extends: ood_nuscenes.yaml
+
+run_id: ood_nuscenes_0553
+output_dir: data/outputs/OoD
+
+dataset:
+  scenes: [scene-0553]
+
+# 单场景时 rng = default_rng([seed, 0])，与全量 10 场景时的索引不同，
+# 放置会重新采样；这里略收紧前向距离，提高首帧命中激光的概率。
+objects:
+  seed: 42
+  forward_range_m: [6.0, 22.0]
+  tracking:
+    enabled: true
+    count: 2
+    length: [4, 8]
+    forward_range_m: [10.0, 28.0]
+
+# 不写 export_dir，跑 --skip-export，避免动已有 ood_nuscenes 交付物
+
+# 独立导出目录，避免覆盖已有 ood_nuscenes 交付物
+export_dir: data/exports/ood_nuscenes_0553

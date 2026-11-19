@@ -219,6 +219,8 @@ scale 显式给出      → 用 scale（构造时会对 ≤0 / 非有限值报�
 | | `depth_margin_m` / `depth_margin_rel` | `0.2` / `0.02` | 深度容差（常数项 + 距离比例项） |
 | `validation` | `min_size_m` / `max_size_m` | `0.05` / `40` | 目标最长边合理区间，超界校验失败 |
 | | `min_alpha_px` | `500` | 轮廓小于该像素数的相机整体跳过 |
+| | `min_visible_px` | `0` | 图像可见闸（批量）：目标 LiDAR 点在**所有**相机可见命中 <N → 该帧不绘制、不标注 |
+| | `min_obj_camera_dist_m` | `0` | 糊屏闸（批量）：bbox 距任一取景相机 <N m → 该帧跳过（车驶近世界系静止目标的贴脸帧） |
 
 ---
 
@@ -261,6 +263,38 @@ python scripts/run_p0.py --config configs/p0.yaml --run-id my_object
 
 批量注入多个不同类目/材质的目标：把多个条目并列在 `configs/batch.yaml` 的 `models:` 下，
 每个条目给不同的 `path` / `category` / `albedo`。
+
+### ODD 数据集：`models_from` 与质量闸
+
+上千资产不可能手写进 YAML：`models_from`（[`config.py`](../src/nusc_inject/config.py)
+在 `load_config` 末尾展开）从 `assets/models/road_ood_docum/road_ood_asset_tags.csv`
+（[`scripts/classify_id_ood.py`](../scripts/classify_id_ood.py) 产出，`tier` 列是
+ID/OOD 的单一事实来源）按列过滤生成与静态 `models:` 同构的池，批量计划器零改动：
+
+```yaml
+models_from:
+  tags_csv: assets/models/road_ood_docum/road_ood_asset_tags.csv
+  filter: { tier: OOD }        # 严格税则外（不含 ID-TAIL 灰区）
+  defaults: { albedo: 0.6, intensity_gain_k: 200.0, category: movable_object.anomaly }
+  size_by_class:               # 常识体积：{lvis_class: [min, max]} 最长边（米）
+    fire_extinguisher: [0.4, 0.7]   # 不会因同组允许而长到 3 m
+    plastic_bag: [0.3, 0.8]
+    telephone_pole: [4.0, 8.0]
+  size_by_group: { ... }       # 表外类目回退 → 再回退 default_size
+```
+
+完整 50 类尺寸表见 [`configs/ood_nuscenes.yaml`](../configs/ood_nuscenes.yaml)。
+三道质量闸（均默认关闭，OOD 配置开启；需要 `drop_invisible` 批量路径）：
+
+| 闸 | 配置 | 剔除什么 |
+|---|---|---|
+| 可见性 | `validation.min_visible_px: 1` | 所有相机 0 可见命中——LiDAR 打得到、图像全被场景挡住的「幽灵标注」 |
+| 糊屏 | `validation.min_obj_camera_dist_m: 4.0` | 车驶近世界系静止目标（<4 m）——bbox 溢出糊满全帧的贴脸帧，纯几何判定、不烧渲染 |
+| 比例 | `size_by_class` + `validation.max_size_m: 9.0` | 类目现实尺寸先验 + 最长边兜底 |
+
+被闸目标**不绘制也不标注**、其跨帧轨迹以 `invisible` 关闭；导出物 `data/exports/ood_nuscenes/`
+为标准 nuScenes 格式（注入帧实体文件、其余软链 + `specs.json` 溯源），devkit
+`verify_export` 校验通过。复现命令见 README「跑起来」。
 
 ---
 

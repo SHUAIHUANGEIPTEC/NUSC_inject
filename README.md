@@ -113,6 +113,26 @@ python scripts/run_batch.py --config configs/batch.yaml --run-id my_batch
 python scripts/run_batch.py --config configs/batch.yaml --export-only
 ```
 
+**生成 `ood_nuscenes` 数据集**（严格 OOD 第三方材质随机注入全量 mini，口径与
+实施记录见 [`plans/ood_nuscenes_plan.md`](plans/ood_nuscenes_plan.md)）：
+
+```bash
+# 1) 重建 OOD 判定文档（资产已在 assets/models/ 时全程离线）
+python scripts/download_road_ood.py --from-sidecars
+python scripts/classify_id_ood.py        # -> road_ood_docum/road_ood_asset_tags.csv
+
+# 2) 单 scene 冒烟（Cycles GPU，约 3 min）
+python scripts/run_batch.py --config configs/ood_smoke.yaml
+
+# 3) 全量 10 scenes / 404 关键帧 -> data/exports/ood_nuscenes
+python scripts/run_batch.py --config configs/ood_nuscenes.yaml
+```
+
+模型池由 `models_from` 从 `road_ood_asset_tags.csv` 按 `tier: OOD`（nuScenes 税则外）
+动态展开成约 1500 个带贴图资产，`size_by_class` 按类目现实尺寸抽样；三道质量闸剔除
+「看不见 / 糊屏 / 比例失真」的注入帧——详见
+[`docs/reference.md`](docs/reference.md) 第一部分「ODD 数据集：models_from 与质量闸」。
+
 下游直接用 devkit 加载：
 
 ```python

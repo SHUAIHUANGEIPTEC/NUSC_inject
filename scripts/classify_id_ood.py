@@ -261,10 +261,15 @@ def main() -> None:
 
     stat, cn = load_pool()
 
+    # missing = pool classes with no verdict (fatal: verdicts must cover the
+    # pool). extra = verdicts with zero downloaded assets (tolerated: a class
+    # can legitimately end up with no surviving download) — warn only.
     missing = sorted(set(stat) - set(MAPPING))
     extra = sorted(set(MAPPING) - set(stat))
-    if missing or extra:
-        raise SystemExit(f"判定表与模型池不匹配\n  未判定: {missing}\n  多余: {extra}")
+    if missing:
+        raise SystemExit(f"判定表缺少模型池类目的判定: {missing}")
+    if extra:
+        print(f"警告：以下判定类目在本地模型池中无资产，已跳过（{len(extra)} 类）: {extra}")
 
     out_rows = []
     for cls, s in sorted(stat.items(), key=lambda kv: (TIER_ORDER[MAPPING[kv[0]][0]], kv[1]["group"], kv[0])):
@@ -315,7 +320,7 @@ def main() -> None:
 
     # ---- 写 Markdown
     md = [
-        "# ID / OOD 类目划分（108 类）",
+        f"# ID / OOD 类目划分（{len(out_rows)} 类）",
         "",
         "判定口径见 `scripts/classify_id_ood.py` 头部注释。依据：本地 nuScenes v1.0-mini 的",
         "`category.json`（23 类全税则）+ devkit `DETECTION_NAMES`（10 类评测口径）。",

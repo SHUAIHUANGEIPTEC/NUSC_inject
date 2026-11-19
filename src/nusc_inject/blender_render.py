@@ -76,14 +76,61 @@ def _import_bpy():
     return bpy
 
 
+def configure_cycles_device(bpy, scene, wanted="CPU") -> str:
+    """Set scene.cycles.device, enabling compute devices when GPU is wanted.
+
+    Setting scene.cycles.device='GPU' alone is not enough — Cycles silently
+    renders on CPU unless the preferences list enabled devices, and the
+    read_factory_settings() call right before this resets those preferences
+    on every invocation. Try OPTIX first (survives driver-side JIT on very
+    new GPUs), then CUDA, then fall back to CPU. Returns the device that
+    actually took effect so the render log cannot lie about GPU usage.
+    """
+    if not hasattr(scene, "cycles"):
+        return str(wanted)
+    if str(wanted).upper() != "GPU":
+        scene.cycles.device = "CPU"
+        return "CPU"
+
+    addon = bpy.context.preferences.addons.get("cycles")
+    if addon is None:
+        print("[blender] cycles addon missing; falling back to CPU")
+        scene.cycles.device = "CPU"
+        return "CPU"
+    prefs = addon.preferences
+    for backend in ("OPTIX", "CUDA"):
+        try:
+            prefs.compute_device_type = backend
+            prefs.get_devices()
+        except Exception as exc:  # backend unavailable in this build
+            print(f"[blender] {backend} unavailable: {exc}")
+            continue
+        gpus = [d for d in prefs.devices if d.type != "CPU"]
+        if not gpus:
+            continue
+        for dev in prefs.devices:
+            dev.use = dev.type != "CPU"
+        scene.cycles.device = "GPU"
+        print(f"[blender] cycles device: GPU via {backend} — "
+              + ", ".join(d.name for d in gpus))
+        return "GPU"
+
+    try:
+        prefs.compute_device_type = "NONE"
+    except Exception:
+        pass
+    print("[blender] cycles device: CPU (no usable GPU backend)")
+    scene.cycles.device = "CPU"
+    return "CPU"
+
+
 def reset_scene(bpy, job=None):
     """Empty scene with deterministic lighting; engine/device come from the job."""
     job = job or {}
     bpy.ops.wm.read_factory_settings(use_empty=True)
     scene = bpy.context.scene
     scene.render.engine = str(job.get("engine", "CYCLES"))
-    if hasattr(scene, "cycles"):
-        scene.cycles.device = str(job.get("cycles_device", "CPU"))
+    configure_cycles_device(bpy, scene, job.get("cycles_device", "CPU"))
     scene.render.film_transparent = True
     scene.render.image_settings.file_format = "PNG"
     scene.render.image_settings.color_mode = "RGBA"
@@ -432,6 +479,20 @@ def main():
         })
         T_full = mathutils_matrix_from_numpy(_mat4(spec["T_model2global"]))
         for o in meshes:
+            # glTF assets arrive as node HIERARCHIES (Sphere/Cube/Bezier
+            # parents carrying scale+rotation). Assigning matrix_world on a
+            # parented object does NOT survive the dependency-graph update —
+            # the parent chain re-enters the transform and silently drops the
+            # scale half of T_full, so a 55 m raw asset rendered at full size
+            # while LiDAR saw the scaled 2.37 m (image/point-cloud divergence
+            # that every self-check missed, because each side only compares
+            # against itself). Bake the hierarchy flat first, then apply the
+            # single truth — the flat frame is exactly trimesh's raw frame
+            # the bbox/vsig guards validate against.
+            if o.parent is not None:
+                mw = o.matrix_world.copy()
+                o.parent = None
+                o.matrix_world = mw
             o.matrix_world = T_full @ o.matrix_world  # imported geo -> global truth
         obj_meshes.extend(meshes)
     bpy.context.view_layer.update()

@@ -15,3 +15,4 @@ dist/
 # archives / OS noise
 *.tar.xz
 .DS_Store
+assets

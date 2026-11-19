@@ -65,6 +65,15 @@ validation:
   min_coverage: 0.85
   min_bbox_iou: 0.5
   min_alpha_px: 500
+  min_visible_px: 0        # per-object image gate (needs drop_invisible): an
+                           # object whose LiDAR points hit fewer than N VISIBLE
+                           # pixels in EVERY camera is fully occluded — it is
+                           # dropped, not drawn/annotated (0 = off)
+  min_obj_camera_dist_m: 0 # frame-smear gate (needs drop_invisible): an object
+                           # whose bbox comes closer than N m to a camera that
+                           # frames it is skipped that frame — the ego has
+                           # driven up to a world-frozen track and the target
+                           # would black out the image (0 = off)
   require_num_lidar_pts_gt0: true
   min_size_m: 0.05        # reject degenerate / absurd gt sizes (longest edge)
   max_size_m: 40.0

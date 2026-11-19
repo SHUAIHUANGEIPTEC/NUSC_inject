@@ -1,0 +1,19 @@
+# 多类别动图专用注入基底：近距 + 偏侧放置（提高可见/存活率），
+# 2-3 个 scene 提高「同相机连续帧 + <20m」轨道的产出概率。
+# 各类目配置 extends 本文件并覆写 models_from.filter 与 run_id；
+# 运行时加 --skip-export（只产帧产物，不动已交付的 ood_nuscenes 导出）。
+extends: ood_nuscenes.yaml
+
+run_id: gif_base
+
+dataset:
+  # 白天场景：管线光照固定为「白世界+太阳」（遮挡判定要求可复现），
+  # 夜景（scene-1100）会让注入物相对背景过亮——展示用动图一律取白天。
+  scenes: [scene-0103, scene-0061, scene-0655]
+
+objects:
+  forward_range_m: [8.0, 18.0]
+  lateral_range_m: [2.0, 6.0]
+  tracking:
+    forward_range_m: [8.0, 18.0]
+    length: [4, 8]
